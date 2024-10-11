@@ -27,6 +27,7 @@ async function getBestMove(fen, depth) {
     return result.bestmove;
 }
 
+
 app.get("/get-best-move", async (req, res) => {
 
     const fen = req.query.fen;
