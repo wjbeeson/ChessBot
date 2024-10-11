@@ -43,7 +43,7 @@ async function runBot() {
     }
 
     async function calculateBestMove(fen) {
-        const depth = 30;
+        const depth = 10;
         const fetchValue = `http://localhost:3001/get-best-move?fen=${encodeURIComponent(fen)}&depth=${depth}`
         console.log(`Received request to get best move: ${fetchValue}`);
         try {
@@ -73,6 +73,7 @@ async function runBot() {
                 t: "move",
                 d: {u: bestMove, b: 1, l: 100, a: 1}
             }
+            console.log("move: ", payload);
             await sendWebSocketMessage(JSON.stringify(payload));
         }
     });
