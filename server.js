@@ -9,11 +9,15 @@ const port = 3001;
 app.use(cors());
 
 // Initialize Stockfish engine
-const engine = new Engine("C:\\Program Files\\stockfish\\stockfish-windows-x86-64-avx2.exe"); // Replace with the actual path
+const engine = new Engine("./stockfish_24101214_x64_avx2.exe"); // Replace with the actual path
 
 // Start and initialize the engine
 async function initializeEngine() {
-    await engine.init();
+    await engine
+        .init()
+        .then(() => engine.setoption('Use NNUE', true))
+        .then(() => console.log('NNUE is enabled'))
+        .catch((error) => console.error('Error enabling NNUE:', error));
 }
 
 initializeEngine(); // Initialize on startup
@@ -23,7 +27,12 @@ async function getBestMove(fen, depth) {
     await engine.ucinewgame();
     await engine.position(fen);
 
-    const result = await engine.go({ depth: depth });
+    const result = await engine.go(
+        {
+            depth: depth,
+
+        }
+    );
     return result.bestmove;
 }
 

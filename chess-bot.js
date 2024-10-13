@@ -158,7 +158,53 @@ async function createLine(bestMove) {
 async function checkForNextOpponentButton(message) {
 
 }
+async function calculateBestMove(fen, depth) {
+    const fetchValue = `http://localhost:3001/get-best-move?fen=${encodeURIComponent(fen)}&depth=${depth}`
+    console.log(`Received request to get best move: ${fetchValue}`);
+    try {
+        const response = await fetch(fetchValue);
+        const data = await response.json();
+        return data.bestMove;
+    } catch (error) {
+        console.error("Error:", error);
+        return null; // Return null if there's an error
+    }
+}
+// Define sendWebSocketMessage within Node.js context
+async function sendWebSocketMessage(page, message) {
+    await page.evaluate((msg) => {
+        if (window.activeWebSocket) {
+            window.activeWebSocket.send(msg);
+            console.log("Move sent!");
+        } else {
+            console.error("No active WebSocket connection to send the message.");
+        }
+    }, message);
+}
+async function getPlayerColor(page) {
+    // calculate the player color
 
+    return await page.evaluate(() => {
+        const messageDiv = document.querySelector('.message');
+        if (messageDiv) {
+            // Get the text content of the div
+            const messageText = messageDiv.textContent || messageDiv.innerText;
+
+            // Check if the message contains "white" or "black"
+            if (messageText.includes("white")) {
+                console.log("You play the white pieces")
+                return "w";
+            } else if (messageText.includes("black")) {
+                console.log("You play the black pieces")
+                return "b";
+            } else {
+                console.log("Error: Piece color not found.");
+                return null;
+            }
+        }
+    })
+
+}
 async function runBot() {
     // Start and navigate to the Lichess website
     let isWhite = false;
@@ -176,64 +222,6 @@ async function runBot() {
     await page.goto('https://lichess.org/', {waitUntil: 'networkidle2'});
 
 
-
-
-
-    // Define sendWebSocketMessage within Node.js context
-    async function sendWebSocketMessage(message) {
-        await page.evaluate((msg) => {
-            if (window.activeWebSocket) {
-                window.activeWebSocket.send(msg);
-                console.log("Move sent!");
-            } else {
-                console.error("No active WebSocket connection to send the message.");
-            }
-        }, message);
-    }
-
-    async function calculateBestMove(fen, depth) {
-        const fetchValue = `http://localhost:3001/get-best-move?fen=${encodeURIComponent(fen)}&depth=${depth}`
-        console.log(`Received request to get best move: ${fetchValue}`);
-        try {
-            const response = await fetch(fetchValue);
-            const data = await response.json();
-            return data.bestMove;
-        } catch (error) {
-            console.error("Error:", error);
-            return null; // Return null if there's an error
-        }
-    }
-    async function getPlayerColor() {
-        // calculate the player color
-
-            const tempIsWhite = await page.evaluate(() => {
-                const messageDiv = document.querySelector('.message');
-                if (messageDiv) {
-                    // Get the text content of the div
-                    const messageText = messageDiv.textContent || messageDiv.innerText;
-
-                    // Check if the message contains "white" or "black"
-                    if (messageText.includes("white")) {
-                        console.log("You play the white pieces")
-                        return "w";
-                    } else if (messageText.includes("black")) {
-                        console.log("You play the black pieces")
-                        return "b";
-                    } else {
-                        console.log("Error: Piece color not found.");
-                        return null;
-                    }
-                }
-            })
-            if (tempIsWhite) {
-                if (tempIsWhite === "w") {
-                    isWhite = true;
-                } else {
-                    isWhite = false;
-                }
-            }
-
-    }
     // Expose Node.js function to handle WebSocket messages
     await page.exposeFunction('handleWebSocketMessage', async (message) => {
         let messageData = JSON.parse(message);
@@ -241,7 +229,10 @@ async function runBot() {
 
         // Get the player data
         if (messageData === 0 || messageData.t === 'crowd') {
-            await getPlayerColor();
+            let tempIsWhite = await getPlayerColor(page);
+            if (tempIsWhite) {
+                isWhite = tempIsWhite === "w";
+            }
         }
 
         // Only parse messages that contain a fen
@@ -283,7 +274,7 @@ async function runBot() {
             d: {u: bestMove, b: 1, l: 100, a: 1}
         }
 
-        await sendWebSocketMessage(JSON.stringify(payload));
+        await sendWebSocketMessage(page, JSON.stringify(payload));
 
     });
 
