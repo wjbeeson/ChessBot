@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer');
+
 async function injectControls(page) {
     page.evaluateOnNewDocument(() => {
         // Add the checkbox to the page when it loads
@@ -47,11 +48,12 @@ async function injectControls(page) {
             slider.id = 'depthSlider';
             slider.min = '1';
             slider.max = '31';
-            slider.value = '20';  // Default depth
+            slider.value = '22';  // Default depth
             slider.style.width = '100px';
-            slider.step = '5';
+            slider.step = '1';
 
             const sliderValue = document.createElement('span');
+            sliderValue.id = 'depthSliderText';
             sliderValue.innerText = slider.value;
             sliderValue.style.color = 'white';
             sliderValue.style.marginLeft = '5px';
@@ -104,14 +106,15 @@ async function interceptWebsocket(page) {
         console.log("WebSocket interception is set up.");
     });
 }
+
 //TODO: Not implemented
 async function createLine(bestMove) {
     const originSquare = bestMove.substring(0, 2);
     const targetSquare = bestMove.substring(2, 4);
-    let x1 = originSquare.charCodeAt(0)-96-4.5;
-    let y1 = -1 * (parseInt(originSquare.at(1))-4.5);
-    let x2 = targetSquare.charCodeAt(0)-96-4.5;
-    let y2 = -1 * (parseInt(targetSquare.at(1))-4.5);
+    let x1 = originSquare.charCodeAt(0) - 96 - 4.5;
+    let y1 = -1 * (parseInt(originSquare.at(1)) - 4.5);
+    let x2 = targetSquare.charCodeAt(0) - 96 - 4.5;
+    let y2 = -1 * (parseInt(targetSquare.at(1)) - 4.5);
 
     if (!isWhite) {
         x1 = -1 * x1
@@ -154,13 +157,12 @@ async function createLine(bestMove) {
         x1, y1, x2, y2, originSquare, targetSquare, boardSize
     );
 }
-//TODO: Not implemented
-async function checkForNextOpponentButton(message) {
 
-}
+//TODO: Not implemented
+
 async function calculateBestMove(fen, depth) {
     const fetchValue = `http://localhost:3001/get-best-move?fen=${encodeURIComponent(fen)}&depth=${depth}`
-    console.log(`Received request to get best move: ${fetchValue}`);
+    //console.log(`Received request to get best move: ${fetchValue}`);
     try {
         const response = await fetch(fetchValue);
         const data = await response.json();
@@ -170,6 +172,7 @@ async function calculateBestMove(fen, depth) {
         return null; // Return null if there's an error
     }
 }
+
 // Define sendWebSocketMessage within Node.js context
 async function sendWebSocketMessage(page, message) {
     await page.evaluate((msg) => {
@@ -181,6 +184,7 @@ async function sendWebSocketMessage(page, message) {
         }
     }, message);
 }
+
 async function getPlayerColor(page) {
     // calculate the player color
 
@@ -203,14 +207,45 @@ async function getPlayerColor(page) {
             }
         }
     })
-
 }
+
+async function tryFirstMove(page) {
+    let payload = {
+        t: "move",
+        d: {u: 'e2e4', b: 1, l: 100, a: 1}
+    }
+    await sendWebSocketMessage(page, JSON.stringify(payload));
+}
+
 async function runBot() {
     // Start and navigate to the Lichess website
+    let winCounter = 0;
     let isWhite = false;
     let autoMoveEnabled = true;
     const browser = await puppeteer.launch({headless: false, defaultViewport: null});
     const page = await browser.newPage();
+
+    async function checkForThankYouButton(page) {
+        //Try to click the 'Thank you' Button to be a dick
+        await page.waitForFunction(
+            () => {
+                const thankYouButton = Array.from(document.querySelectorAll('span'))
+                    .find(button => button.textContent.trim() === 'ty');
+                if (thankYouButton) {
+                    thankYouButton.click(); // Click the button once it appears
+                    return true; // Resolve the wait once the button is clicked
+                }
+                return false; // Keep waiting if not found
+            },
+            {timeout: 2000} // Set the timeout to 2 seconds
+        );
+    }
+
+    async function newGame(page) {
+        let newPage = "https://lichess.org/?hook_like=" + page.url().split("lichess.org/")[1]
+        isWhite = false;
+        page.goto(newPage);
+    }
 
     // Inject some elements into the page to control the bot
     await injectControls(page);
@@ -225,7 +260,14 @@ async function runBot() {
     // Expose Node.js function to handle WebSocket messages
     await page.exposeFunction('handleWebSocketMessage', async (message) => {
         let messageData = JSON.parse(message);
-        console.log("Received message:", messageData);
+
+        // Player left
+        if (messageData.t && (messageData === 'gone' || messageData === 'goneIn')) {
+            await newGame(page);
+            return;
+        }
+
+        console.log("Message:", messageData);
 
         // Get the player data
         if (messageData === 0 || messageData.t === 'crowd') {
@@ -233,18 +275,54 @@ async function runBot() {
             if (tempIsWhite) {
                 isWhite = tempIsWhite === "w";
             }
+            if (isWhite) {
+                await tryFirstMove(page)
+            }
+
         }
 
+        // if the game is over, go to the next game
+        if (messageData.t && messageData.t === "endData") {
+            try {
+                await checkForThankYouButton(page)
+            } catch (e) {
+                console.log("Couldn't press thank you button")
+            }
+            await newGame(page);
+        }
         // Only parse messages that contain a fen
         if (!messageData.t || messageData.t !== 'move') {
             return;
         }
         let currentFen = messageData.d.fen;
 
+        // Speed up on low time
+        let color = isWhite ? "white" : "black";
+        let timeLeft = messageData.d['clock'][color]
+        if (timeLeft < 30) {
+
+            await page.evaluate(() => {
+                window.depth = 16
+                document.getElementById("depthSlider").value = 16
+                document.getElementById("depthSliderText").innerText = "16"
+                console.log("Depth set to 16. Speeding up...")
+
+
+            })
+        } else if (timeLeft < 7) {
+
+            await page.evaluate(() => {
+                window.depth = 1
+                document.getElementById("depthSlider").value = 1
+                document.getElementById("depthSliderText").innerText = "1"
+                console.log("Depth set to 1. Super speed...")
+            })
+        }
+
         // Don't calculate the best move if it's not your turn
         let isWhitesTurn = messageData.v % 2 === 0;
         if (!isWhite === isWhitesTurn) {
-            console.log("It's not your turn");
+            console.log(`${isWhite ? "black" : "white"}'s turn`);
             return;
         }
 
@@ -267,6 +345,7 @@ async function runBot() {
             console.log("Automove not enabled. Skipping... ")
             return;
         }
+
 
         // Assemble the payload and send the message
         let payload = {
