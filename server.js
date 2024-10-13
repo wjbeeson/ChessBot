@@ -32,21 +32,19 @@ app.get("/get-best-move", async (req, res) => {
 
     const fen = req.query.fen;
     const depth = req.query.depth;
-    console.log("Received request to get best move:");
     if (!fen) {
         return res.status(400).send("Missing required parameter: fen");
     }
     if (!depth) {
         return res.status(400).send("Missing required parameter: depth");
     }
-
-    console.log(`Parameter received: fen = ${fen}`);
-
+    console.log(fen + ": Received request to get best move for fen");
     try {
         const bestMove = await getBestMove(fen, depth);
+        console.log(fen + ": Sending back move " + bestMove);
         res.json({ bestMove });
     } catch (error) {
-        console.error(error);
+        console.error("Error generating move");
         res.status(500).send("Error computing best move");
     }
 });
