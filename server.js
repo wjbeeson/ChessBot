@@ -42,22 +42,22 @@ app.get("/get-best-move", async (req, res) => {
     const fen = req.query.fen;
     const depth = req.query.depth;
     if (!fen) {
-        return res.status(400).send("Missing required parameter: fen");
+        return res.status(400).send("[SERVER] Missing required parameter: fen");
     }
     if (!depth) {
-        return res.status(400).send("Missing required parameter: depth");
+        return res.status(400).send("[SERVER] Missing required parameter: depth");
     }
-    console.log(fen + ": Received request to get best move for fen");
+    console.log("[SERVER] "+fen + ": Received request to get best move for fen");
     try {
         const bestMove = await getBestMove(fen, depth);
-        console.log(fen + ": Sending back move " + bestMove);
+        console.log("[SERVER] " + fen + ": Sending back move " + bestMove);
         res.json({ bestMove });
     } catch (error) {
-        console.error("Error generating move");
-        res.status(500).send("Error computing best move");
+        console.error("[SERVER] Error generating move");
+        res.status(500).send("[SERVER] Error computing best move");
     }
 });
 
 app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+    console.log(`[SERVER] Server is running on http://localhost:${port}`);
 });
