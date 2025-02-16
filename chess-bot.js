@@ -588,18 +588,24 @@ async function isValidMove(fen, from, to) {
 }
 
 async function updateScore(page, score) {
-    await page.evaluate((score) => {
+    await page.evaluate(async (score, playerColorIsWhite) => {
 
         const slider = window.evalSlider;
         if (slider) {
+            if (playerColorIsWhite) {
+                score = -score;
+            }
             slider.value = score;
+
             score = -score;
+
             window.evalLabel.textContent = (score / 100).toFixed(1);
             console.log(`Eval bar updated to: ${score}`);
         } else {
             console.warn('No evalSlider found on window object.');
+            await addEvalBar(page)
         }
-    }, score);
+    }, score, playerColorIsWhite, page);
 }
 
 async function sendMove(page, move, score, isWhite) {
@@ -610,8 +616,6 @@ async function sendMove(page, move, score, isWhite) {
         score = -score;
     }
     await sendWebSocketMessage(page, JSON.stringify(payload));
-
-    await updateScore(page, score);
 }
 
 async function fetchPageVariable(page, variableName) {
@@ -674,7 +678,7 @@ async function activateSmackMode(page) {
 
 async function updateSmackModeStatus(page, gameMoveCounter, timeLeft, score, minScore, minMoves, maxMoves, minTime) {
     // Will always toggle past this amount of moves
-    if (gameMoveCounter > maxMoves || timeLeft < minTime) {
+    if (gameMoveCounter > maxMoves || timeLeft < minTime || score > 300) {
         await activateSmackMode(page)
         return
     }
@@ -774,7 +778,12 @@ async function definePageMessageHandler(page) {
         let timeLeft = messageData.d['clock'][color]
         if (adjustSpeedEnabled) {
             if (gaslightingEnabled && smackModeEnabled) {
-                await setMovetime(page, smackModeMovetime)
+                if (timeLeft < 5) {
+                    await setMovetime(page, 100)
+                } else {
+                    await setMovetime(page, smackModeMovetime)
+                }
+
             } else {
                 await setMovetime(page, await getDynamicMovetime(timeLeft));
             }
@@ -827,7 +836,7 @@ async function definePageMessageHandler(page) {
             await injectArrowMarkerDef(page);
             await showArrow(page, moveInfo.move);
         }
-
+        await updateScore(page, moveInfo.score);
     });
 }
 

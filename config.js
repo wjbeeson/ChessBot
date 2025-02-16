@@ -18,8 +18,8 @@ module.exports = {
             5: 300,
         },
     smackModeMovetime: 300, // The amount of time for each move in smackMode
-    smackModeMinScore: -750, // The minimum score to activate smackMode
+    smackModeMinScore: -900, // The minimum score to activate smackMode
     smackModeMinMoves: 20, // the minimum number of moves to allow smackMode activation
     smackModeMaxMoves: 40, // the max number of moves before smackMode activation
-    smackModeMinTime: 17,
+    smackModeMinTime: 11,
 };
