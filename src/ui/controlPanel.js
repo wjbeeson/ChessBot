@@ -3,8 +3,6 @@
  * Creates and manages the floating control panel interface
  */
 
-const { STORAGE_KEYS } = require('../utils/constants');
-
 /**
  * Creates the main control panel UI injected into the Lichess page.
  * Sets up floating window with checkboxes, sliders, and controls.
@@ -313,7 +311,7 @@ async function injectControls(page) {
             }
 
             /**
-             * Sets up drag functionality for the floating window
+             * Sets up drag functionality for the floating window (position in memory only)
              */
             function setupDragging(floatingWindow, header, title) {
                 let isDragging = false;
@@ -340,8 +338,6 @@ async function injectControls(page) {
                 const dragEnd = () => {
                     if (isDragging) {
                         isDragging = false;
-                        localStorage.setItem(KEYS.CONTROLS_X, floatingWindow.style.left.replace('px', ''));
-                        localStorage.setItem(KEYS.CONTROLS_Y, floatingWindow.style.top.replace('px', ''));
                     }
                 };
 
@@ -354,16 +350,12 @@ async function injectControls(page) {
             // MAIN WINDOW CREATION
             // ============================================================
 
-            const storedX = localStorage.getItem(KEYS.CONTROLS_X) || '10';
-            const storedY = localStorage.getItem(KEYS.CONTROLS_Y) || '10';
-            const isHidden = localStorage.getItem(KEYS.CONTROLS_HIDDEN) === 'true';
-
             const floatingWindow = document.createElement('div');
             floatingWindow.id = 'botControlsWindow';
             Object.assign(floatingWindow.style, {
                 position: 'fixed',
-                left: storedX + 'px',
-                top: storedY + 'px',
+                left: '10px',
+                top: '10px',
                 zIndex: '9999',
                 backgroundColor: UI_COLORS.BACKGROUND,
                 padding: '0',
@@ -371,7 +363,7 @@ async function injectControls(page) {
                 border: `2px solid ${UI_COLORS.BORDER}`,
                 boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
                 minWidth: UI_SIZES.WINDOW_MIN_WIDTH,
-                display: isHidden ? 'none' : 'block',
+                display: 'block',
                 cursor: 'move'
             });
 
@@ -413,7 +405,6 @@ async function injectControls(page) {
             });
             closeButton.addEventListener('click', () => {
                 floatingWindow.style.display = 'none';
-                localStorage.setItem(KEYS.CONTROLS_HIDDEN, 'true');
             });
 
             header.appendChild(title);
@@ -445,7 +436,7 @@ async function injectControls(page) {
             });
 
             const { header: togglesHeader, contentWrapper: togglesContent } =
-                createCollapsibleSection('Controls', KEYS.TOGGLES_COLLAPSED);
+                createCollapsibleSection('Controls', false);
 
             togglesSection.appendChild(togglesHeader);
             togglesSection.appendChild(togglesContent);
@@ -457,7 +448,6 @@ async function injectControls(page) {
                 {
                     id: 'automoveCheckbox',
                     labelText: 'Auto-Move',
-                    storageKey: KEYS.AUTOMOVE_ENABLED,
                     windowProp: 'automoveEnabled',
                     configKey: 'automoveEnabled',
                     onToggle: (val) => window.nodeLog?.('info', `Automoving is now ${val ? 'enabled' : 'disabled'}.`),
@@ -466,37 +456,30 @@ async function injectControls(page) {
                 {
                     id: 'autoStartNewGameCheckbox',
                     labelText: 'Auto-Queue',
-                    storageKey: KEYS.AUTO_START_NEW_GAME_ENABLED,
                     windowProp: 'autoStartNewGameEnabled',
                     configKey: 'autoStartNewGame',
                     onToggle: (val) => window.nodeLog?.('info', `autoStartNewGameEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    defaultValue: true,
                     tooltip: 'Start next game automatically. Nonstop chaos.'
                 },
                 {
                     id: 'autoSendRematchCheckbox',
                     labelText: 'Auto-Rematch',
-                    storageKey: KEYS.AUTO_SEND_REMATCH_ENABLED,
                     windowProp: 'autoSendRematchEnabled',
                     configKey: 'autoSendRematch',
                     onToggle: (val) => window.nodeLog?.('info', `autoSendRematchEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    defaultValue: false,
                     tooltip: 'Automatically send rematch offer after game ends'
                 },
                 {
                     id: 'badOpeningCheckbox',
                     labelText: 'Bongcloud Opening',
-                    storageKey: KEYS.BAD_OPENING_ENABLED,
                     windowProp: 'badOpeningEnabled',
                     configKey: 'badOpeningEnabled',
                     onToggle: (val) => window.nodeLog?.('info', `DoBadOpenings is now ${val ? 'enabled' : 'disabled'}.`),
-                    defaultValue: false,
                     tooltip: 'Play Bongcloud (Ke2/Ke7) for maximum disrespect'
                 },
                 {
                     id: 'adjustSpeedCheckbox',
                     labelText: 'Dynamic Speed',
-                    storageKey: KEYS.ADJUST_SPEED_ENABLED,
                     windowProp: 'adjustSpeedEnabled',
                     configKey: 'adjustSpeedEnabled',
                     onToggle: (val) => {
@@ -520,17 +503,14 @@ async function injectControls(page) {
                 {
                     id: 'criticalTimeCheckbox',
                     labelText: 'Emergency Mode',
-                    storageKey: KEYS.CRITICAL_TIME_ENABLED,
                     windowProp: 'criticalTimeEnabled',
                     configKey: 'criticalTimeEnabled',
                     onToggle: (val) => window.nodeLog?.('info', `criticalTimeEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    defaultValue: true,
                     tooltip: 'Ultra-fast moves when low on time (overrides everything)'
                 },
                 {
                     id: 'gaslightingCheckbox',
                     labelText: 'Gaslight Mode',
-                    storageKey: KEYS.GASLIGHTING_ENABLED,
                     windowProp: 'gaslightingEnabled',
                     configKey: 'gaslightingEnabled',
                     onToggle: (val) => window.nodeLog?.('info', `Gaslighting is now ${val ? 'enabled' : 'disabled'}.`),
@@ -539,21 +519,17 @@ async function injectControls(page) {
                 {
                     id: 'pressThankYouCheckbox',
                     labelText: 'Press Thank You',
-                    storageKey: KEYS.PRESS_THANK_YOU_ENABLED,
                     windowProp: 'pressThankYouEnabled',
                     configKey: 'pressThankYou',
                     onToggle: (val) => window.nodeLog?.('info', `pressThankYouEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    defaultValue: true,
                     tooltip: 'Click "Thank You" after winning. Rub it in.'
                 },
                 {
                     id: 'showArrowsCheckbox',
                     labelText: 'Show Arrows',
-                    storageKey: KEYS.SHOW_ARROWS_ENABLED,
                     windowProp: 'showArrowsEnabled',
                     configKey: 'showArrowsEnabled',
                     onToggle: (val) => window.nodeLog?.('info', `showArrowsEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    defaultValue: false,
                     tooltip: 'Show engine move arrows on board'
                 }
             ];
@@ -586,7 +562,7 @@ async function injectControls(page) {
             slider.id = 'movetimeSlider';
             slider.min = '0';
             slider.max = '5';
-            slider.value = localStorage.getItem(KEYS.MOVETIME_SLIDER_VALUE) || '1.5';
+            slider.value = '1.5';
             slider.step = '0.1';
             Object.assign(slider.style, {
                 width: '100%',
@@ -605,8 +581,9 @@ async function injectControls(page) {
             slider.addEventListener('input', () => {
                 window.movetime = Math.round(parseFloat(slider.value) * 1000) + 1;
                 sliderValue.innerText = slider.value + 's';
-                localStorage.setItem(KEYS.MOVETIME_SLIDER_VALUE, slider.value);
-                console.log(`Movetime is now set to ${window.movetime}ms.`);
+                if (typeof window.nodeLog === 'function') {
+                    window.nodeLog('info', `Movetime is now set to ${window.movetime}ms.`);
+                }
             });
 
             sliderContainer.appendChild(sliderLabel);
@@ -636,13 +613,16 @@ async function injectControls(page) {
             configButton.style.marginTop = UI_SIZES.PADDING_LARGE;
             togglesContent.appendChild(configButton);
 
-            // Set initial state based on adjustSpeed setting
-            const adjustSpeedEnabled = localStorage.getItem(KEYS.ADJUST_SPEED_ENABLED);
-            if (adjustSpeedEnabled === null || adjustSpeedEnabled !== 'false') {
-                slider.disabled = true;
-                slider.style.opacity = '0.5';
-                slider.style.cursor = 'not-allowed';
-                movetimeIndicator.style.display = 'block';
+            // Set initial state based on adjustSpeed config value
+            if (typeof window.getConfigValue === 'function') {
+                window.getConfigValue('adjustSpeedEnabled').then(adjustSpeedEnabled => {
+                    if (adjustSpeedEnabled === true) {
+                        slider.disabled = true;
+                        slider.style.opacity = '0.5';
+                        slider.style.cursor = 'not-allowed';
+                        movetimeIndicator.style.display = 'block';
+                    }
+                });
             }
 
             content.appendChild(togglesSection);
@@ -659,7 +639,7 @@ async function injectControls(page) {
             });
 
             const { header: evalBarHeader, contentWrapper: evalBarContent } =
-                createCollapsibleSection('Evaluation', KEYS.EVAL_COLLAPSED);
+                createCollapsibleSection('Evaluation', false);
 
             evalBarContent.style.alignItems = 'center';
             evalBarContent.style.gap = UI_SIZES.PADDING_SMALL;
@@ -716,7 +696,7 @@ async function injectControls(page) {
             });
 
             const { header: scoreboardHeader, contentWrapper: scoreboardContentWrapper } =
-                createCollapsibleSection('Scoreboard', KEYS.SCOREBOARD_COLLAPSED);
+                createCollapsibleSection('Scoreboard', false);
 
             const scoreboardContent = document.createElement('div');
             Object.assign(scoreboardContent.style, {
@@ -728,10 +708,10 @@ async function injectControls(page) {
                 border: `1px solid ${UI_COLORS.BORDER_LIGHT}`
             });
 
-            // Load scoreboard from localStorage or initialize
-            const wins = parseInt(localStorage.getItem(KEYS.BOT_WINS) || '0');
-            const draws = parseInt(localStorage.getItem(KEYS.BOT_DRAWS) || '0');
-            const losses = parseInt(localStorage.getItem(KEYS.BOT_LOSSES) || '0');
+            // Initialize scoreboard in memory only
+            window.botWins = 0;
+            window.botDraws = 0;
+            window.botLosses = 0;
 
             // Create score columns
             const createScoreColumn = (label, value, color, valueId) => {
@@ -764,19 +744,21 @@ async function injectControls(page) {
                 return div;
             };
 
-            scoreboardContent.appendChild(createScoreColumn('Wins', wins, UI_COLORS.WINS, 'botWinsValue'));
-            scoreboardContent.appendChild(createScoreColumn('Draws', draws, UI_COLORS.DRAWS, 'botDrawsValue'));
-            scoreboardContent.appendChild(createScoreColumn('Losses', losses, UI_COLORS.LOSSES, 'botLossesValue'));
+            scoreboardContent.appendChild(createScoreColumn('Wins', 0, UI_COLORS.WINS, 'botWinsValue'));
+            scoreboardContent.appendChild(createScoreColumn('Draws', 0, UI_COLORS.DRAWS, 'botDrawsValue'));
+            scoreboardContent.appendChild(createScoreColumn('Losses', 0, UI_COLORS.LOSSES, 'botLossesValue'));
 
             // Reset button
             const resetButton = createButton('Reset Stats', () => {
-                localStorage.setItem(KEYS.BOT_WINS, '0');
-                localStorage.setItem(KEYS.BOT_DRAWS, '0');
-                localStorage.setItem(KEYS.BOT_LOSSES, '0');
+                window.botWins = 0;
+                window.botDraws = 0;
+                window.botLosses = 0;
                 document.getElementById('botWinsValue').innerText = '0';
                 document.getElementById('botDrawsValue').innerText = '0';
                 document.getElementById('botLossesValue').innerText = '0';
-                console.log('Scoreboard reset');
+                if (typeof window.nodeLog === 'function') {
+                    window.nodeLog('info', 'Scoreboard reset');
+                }
             });
             resetButton.style.marginTop = UI_SIZES.PADDING_SMALL;
             resetButton.style.fontSize = UI_SIZES.FONT_SIZE_TINY;
@@ -788,26 +770,21 @@ async function injectControls(page) {
             scoreboardSection.appendChild(scoreboardContentWrapper);
             content.appendChild(scoreboardSection);
 
-            // Make scoreboard accessible globally for updates
+            // Make scoreboard accessible globally for updates (in memory only)
             window.updateScoreboard = (result) => {
-                let wins = parseInt(localStorage.getItem(KEYS.BOT_WINS) || '0');
-                let draws = parseInt(localStorage.getItem(KEYS.BOT_DRAWS) || '0');
-                let losses = parseInt(localStorage.getItem(KEYS.BOT_LOSSES) || '0');
-
                 if (result === 'win') {
-                    wins++;
-                    localStorage.setItem(KEYS.BOT_WINS, wins);
-                    document.getElementById('botWinsValue').innerText = wins;
+                    window.botWins++;
+                    document.getElementById('botWinsValue').innerText = window.botWins;
                 } else if (result === 'draw') {
-                    draws++;
-                    localStorage.setItem(KEYS.BOT_DRAWS, draws);
-                    document.getElementById('botDrawsValue').innerText = draws;
+                    window.botDraws++;
+                    document.getElementById('botDrawsValue').innerText = window.botDraws;
                 } else if (result === 'loss') {
-                    losses++;
-                    localStorage.setItem(KEYS.BOT_LOSSES, losses);
-                    document.getElementById('botLossesValue').innerText = losses;
+                    window.botLosses++;
+                    document.getElementById('botLossesValue').innerText = window.botLosses;
                 }
-                console.log(`Scoreboard updated: ${result}`);
+                if (typeof window.nodeLog === 'function') {
+                    window.nodeLog('info', `Scoreboard updated: ${result}`);
+                }
             };
 
             // ============================================================
@@ -834,12 +811,11 @@ async function injectControls(page) {
                 fontSize: '24px',
                 cursor: 'pointer',
                 boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)',
-                display: isHidden ? 'block' : 'none'
+                display: 'none'
             });
             toggleButton.addEventListener('click', () => {
                 floatingWindow.style.display = 'block';
                 toggleButton.style.display = 'none';
-                localStorage.setItem(KEYS.CONTROLS_HIDDEN, 'false');
             });
 
             closeButton.addEventListener('click', () => {
@@ -849,9 +825,11 @@ async function injectControls(page) {
             document.body.appendChild(floatingWindow);
             document.body.appendChild(toggleButton);
 
-            console.log('Control panel initialized');
+            if (typeof window.nodeLog === 'function') {
+                window.nodeLog('info', 'Control panel initialized');
+            }
         });
-    }, STORAGE_KEYS);
+    });
 }
 
 module.exports = { injectControls };

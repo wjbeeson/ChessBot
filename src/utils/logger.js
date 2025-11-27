@@ -10,7 +10,7 @@ const LOG_LEVELS = {
     ERROR: 3
 };
 
-const CURRENT_LOG_LEVEL = LOG_LEVELS.DEBUG;
+const CURRENT_LOG_LEVEL = LOG_LEVELS.INFO;
 
 /**
  * Formats a log message with timestamp and level

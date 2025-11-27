@@ -109,41 +109,6 @@ const UI_TRANSITIONS = {
 };
 
 // ============================================================================
-// STORAGE KEYS
-// ============================================================================
-
-const STORAGE_KEYS = {
-    // Position
-    CONTROLS_X: 'botControlsX',
-    CONTROLS_Y: 'botControlsY',
-    CONTROLS_HIDDEN: 'botControlsHidden',
-
-    // Collapse states
-    TOGGLES_COLLAPSED: 'togglesCollapsed',
-    EVAL_COLLAPSED: 'evalCollapsed',
-    SCOREBOARD_COLLAPSED: 'scoreboardCollapsed',
-
-    // Settings
-    AUTOMOVE_ENABLED: 'automoveEnabled',
-    GASLIGHTING_ENABLED: 'gaslightingEnabled',
-    BAD_OPENING_ENABLED: 'badOpeningEnabled',
-    SHOW_ARROWS_ENABLED: 'showArrowsEnabled',
-    ADJUST_SPEED_ENABLED: 'adjustSpeedEnabled',
-    AUTO_START_NEW_GAME_ENABLED: 'autoStartNewGameEnabled',
-    AUTO_SEND_REMATCH_ENABLED: 'autoSendRematchEnabled',
-    CRITICAL_TIME_ENABLED: 'criticalTimeEnabled',
-    PRESS_THANK_YOU_ENABLED: 'pressThankYouEnabled',
-
-    // Scoreboard
-    BOT_WINS: 'botWins',
-    BOT_DRAWS: 'botDraws',
-    BOT_LOSSES: 'botLosses',
-
-    // Movetime
-    MOVETIME_SLIDER_VALUE: 'movetimeSliderValue'
-};
-
-// ============================================================================
 // TIMEOUTS
 // ============================================================================
 
@@ -178,7 +143,6 @@ module.exports = {
     UI_SIZES,
     UI_SPACING,
     UI_TRANSITIONS,
-    STORAGE_KEYS,
     TIMEOUTS,
     GAME_RESULT,
     COUNTED_WIN_STATUSES,
