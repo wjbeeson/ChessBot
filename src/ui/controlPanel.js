@@ -166,9 +166,12 @@ async function injectControls(page) {
             }
 
             /**
-             * Creates a collapsible section with header and content (state in memory only)
+             * Creates a collapsible section with header and content (state persisted to localStorage)
              */
             function createCollapsibleSection(title, defaultCollapsed = false) {
+                const storageKey = `section_${title.replace(/\s+/g, '_')}_collapsed`;
+                const isCollapsed = localStorage.getItem(storageKey) === 'true' || defaultCollapsed;
+
                 const header = document.createElement('div');
                 Object.assign(header.style, {
                     display: 'flex',
@@ -187,7 +190,7 @@ async function injectControls(page) {
                 });
 
                 const collapseButton = document.createElement('button');
-                collapseButton.innerText = defaultCollapsed ? '+' : '−';
+                collapseButton.innerText = isCollapsed ? '+' : '−';
                 Object.assign(collapseButton.style, {
                     background: 'none',
                     border: 'none',
@@ -204,7 +207,7 @@ async function injectControls(page) {
 
                 const contentWrapper = document.createElement('div');
                 Object.assign(contentWrapper.style, {
-                    display: defaultCollapsed ? 'none' : 'flex',
+                    display: isCollapsed ? 'none' : 'flex',
                     flexDirection: 'column',
                     transition: 'all 0.3s ease'
                 });
@@ -213,6 +216,7 @@ async function injectControls(page) {
                     const isHidden = contentWrapper.style.display === 'none';
                     contentWrapper.style.display = isHidden ? 'flex' : 'none';
                     collapseButton.innerText = isHidden ? '−' : '+';
+                    localStorage.setItem(storageKey, !isHidden);
                 });
 
                 return { header, contentWrapper };
@@ -311,17 +315,19 @@ async function injectControls(page) {
             }
 
             /**
-             * Sets up drag functionality for the floating window (position in memory only)
+             * Sets up drag functionality for the floating window (position persisted to localStorage)
              */
-            function setupDragging(floatingWindow, header, title) {
+            function setupDragging(floatingWindow, header, closeButton) {
                 let isDragging = false;
                 let currentX, currentY, initialX, initialY;
 
                 const dragStart = (e) => {
-                    if (e.target === header || e.target === title) {
+                    // Only allow dragging from header area, not the close button
+                    if (e.target === header || e.target.parentElement === header) {
                         initialX = e.clientX - parseInt(floatingWindow.style.left);
                         initialY = e.clientY - parseInt(floatingWindow.style.top);
                         isDragging = true;
+                        e.preventDefault();
                     }
                 };
 
@@ -338,10 +344,18 @@ async function injectControls(page) {
                 const dragEnd = () => {
                     if (isDragging) {
                         isDragging = false;
+                        // Save position to localStorage
+                        const x = floatingWindow.style.left.replace('px', '');
+                        const y = floatingWindow.style.top.replace('px', '');
+                        localStorage.setItem('botControlsX', x);
+                        localStorage.setItem('botControlsY', y);
+                        if (typeof window.nodeLog === 'function') {
+                            window.nodeLog('debug', `Window position saved: ${x}, ${y}`);
+                        }
                     }
                 };
 
-                floatingWindow.addEventListener('mousedown', dragStart);
+                header.addEventListener('mousedown', dragStart);
                 document.addEventListener('mousemove', drag);
                 document.addEventListener('mouseup', dragEnd);
             }
@@ -350,12 +364,16 @@ async function injectControls(page) {
             // MAIN WINDOW CREATION
             // ============================================================
 
+            // Load saved position from localStorage
+            const savedX = localStorage.getItem('botControlsX') || '10';
+            const savedY = localStorage.getItem('botControlsY') || '10';
+
             const floatingWindow = document.createElement('div');
             floatingWindow.id = 'botControlsWindow';
             Object.assign(floatingWindow.style, {
                 position: 'fixed',
-                left: '10px',
-                top: '10px',
+                left: savedX + 'px',
+                top: savedY + 'px',
                 zIndex: '9999',
                 backgroundColor: UI_COLORS.BACKGROUND,
                 padding: '0',
@@ -373,22 +391,11 @@ async function injectControls(page) {
             const header = document.createElement('div');
             Object.assign(header.style, {
                 display: 'flex',
-                justifyContent: 'space-between',
+                justifyContent: 'flex-end',
                 alignItems: 'center',
-                padding: `${UI_SIZES.PADDING_TINY} ${UI_SIZES.PADDING_LARGE}`,
-                borderBottom: `1px solid ${UI_COLORS.BORDER_LIGHT}`,
+                padding: '4px',
                 cursor: 'move',
-                userSelect: 'none',
-                borderRadius: `${UI_SIZES.BORDER_RADIUS_LARGE} ${UI_SIZES.BORDER_RADIUS_LARGE} 0 0`
-            });
-
-            const title = document.createElement('h2');
-            title.innerText = 'Bot Controls';
-            Object.assign(title.style, {
-                color: UI_COLORS.TEXT_PRIMARY,
-                margin: '0',
-                fontSize: UI_SIZES.FONT_SIZE_NORMAL,
-                pointerEvents: 'none'
+                userSelect: 'none'
             });
 
             const closeButton = document.createElement('button');
@@ -397,20 +404,20 @@ async function injectControls(page) {
                 background: 'none',
                 border: 'none',
                 color: UI_COLORS.TEXT_PRIMARY,
-                fontSize: '24px',
+                fontSize: '16px',
                 cursor: 'pointer',
                 padding: '0',
-                width: '30px',
-                height: '30px'
+                width: '20px',
+                height: '20px',
+                lineHeight: '20px'
             });
             closeButton.addEventListener('click', () => {
                 floatingWindow.style.display = 'none';
             });
 
-            header.appendChild(title);
             header.appendChild(closeButton);
 
-            setupDragging(floatingWindow, header, title);
+            setupDragging(floatingWindow, header, closeButton);
 
             // ============================================================
             // CONTENT CONTAINER
@@ -419,213 +426,12 @@ async function injectControls(page) {
             Object.assign(content.style, {
                 display: 'flex',
                 flexDirection: 'column',
-                padding: UI_SIZES.PADDING_LARGE,
+                padding: UI_SIZES.PADDING_MEDIUM,
+                paddingTop: '0',
                 cursor: 'default'
             });
 
             injectStyles();
-
-            // ============================================================
-            // TOGGLES SECTION (COLLAPSIBLE)
-            // ============================================================
-            const togglesSection = document.createElement('div');
-            Object.assign(togglesSection.style, {
-                display: 'flex',
-                flexDirection: 'column',
-                paddingBottom: UI_SIZES.PADDING_MEDIUM
-            });
-
-            const { header: togglesHeader, contentWrapper: togglesContent } =
-                createCollapsibleSection('Controls', false);
-
-            togglesSection.appendChild(togglesHeader);
-            togglesSection.appendChild(togglesContent);
-
-            // ============================================================
-            // CHECKBOXES
-            // ============================================================
-            const checkboxes = [
-                {
-                    id: 'automoveCheckbox',
-                    labelText: 'Auto-Move',
-                    windowProp: 'automoveEnabled',
-                    configKey: 'automoveEnabled',
-                    onToggle: (val) => window.nodeLog?.('info', `Automoving is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Auto-play moves. Sit back and watch.'
-                },
-                {
-                    id: 'autoStartNewGameCheckbox',
-                    labelText: 'Auto-Queue',
-                    windowProp: 'autoStartNewGameEnabled',
-                    configKey: 'autoStartNewGame',
-                    onToggle: (val) => window.nodeLog?.('info', `autoStartNewGameEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Start next game automatically. Nonstop chaos.'
-                },
-                {
-                    id: 'autoSendRematchCheckbox',
-                    labelText: 'Auto-Rematch',
-                    windowProp: 'autoSendRematchEnabled',
-                    configKey: 'autoSendRematch',
-                    onToggle: (val) => window.nodeLog?.('info', `autoSendRematchEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Automatically send rematch offer after game ends'
-                },
-                {
-                    id: 'badOpeningCheckbox',
-                    labelText: 'Bongcloud Opening',
-                    windowProp: 'badOpeningEnabled',
-                    configKey: 'badOpeningEnabled',
-                    onToggle: (val) => window.nodeLog?.('info', `DoBadOpenings is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Play Bongcloud (Ke2/Ke7) for maximum disrespect'
-                },
-                {
-                    id: 'adjustSpeedCheckbox',
-                    labelText: 'Dynamic Speed',
-                    windowProp: 'adjustSpeedEnabled',
-                    configKey: 'adjustSpeedEnabled',
-                    onToggle: (val) => {
-                        window.nodeLog?.('info', `adjustSpeedEnabled is now ${val ? 'enabled' : 'disabled'}.`);
-                        const movetimeSlider = document.getElementById('movetimeSlider');
-                        const movetimeIndicator = document.getElementById('movetimeIndicator');
-                        if (val) {
-                            movetimeSlider.disabled = true;
-                            movetimeSlider.style.opacity = '0.5';
-                            movetimeSlider.style.cursor = 'not-allowed';
-                            if (movetimeIndicator) movetimeIndicator.style.display = 'block';
-                        } else {
-                            movetimeSlider.disabled = false;
-                            movetimeSlider.style.opacity = '1';
-                            movetimeSlider.style.cursor = 'pointer';
-                            if (movetimeIndicator) movetimeIndicator.style.display = 'none';
-                        }
-                    },
-                    tooltip: 'Vary move speed based on time remaining'
-                },
-                {
-                    id: 'criticalTimeCheckbox',
-                    labelText: 'Emergency Mode',
-                    windowProp: 'criticalTimeEnabled',
-                    configKey: 'criticalTimeEnabled',
-                    onToggle: (val) => window.nodeLog?.('info', `criticalTimeEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Ultra-fast moves when low on time (overrides everything)'
-                },
-                {
-                    id: 'gaslightingCheckbox',
-                    labelText: 'Gaslight Mode',
-                    windowProp: 'gaslightingEnabled',
-                    configKey: 'gaslightingEnabled',
-                    onToggle: (val) => window.nodeLog?.('info', `Gaslighting is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Play bad moves, let them think they\'re winning, then crush them'
-                },
-                {
-                    id: 'pressThankYouCheckbox',
-                    labelText: 'Press Thank You',
-                    windowProp: 'pressThankYouEnabled',
-                    configKey: 'pressThankYou',
-                    onToggle: (val) => window.nodeLog?.('info', `pressThankYouEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Click "Thank You" after winning. Rub it in.'
-                },
-                {
-                    id: 'showArrowsCheckbox',
-                    labelText: 'Show Arrows',
-                    windowProp: 'showArrowsEnabled',
-                    configKey: 'showArrowsEnabled',
-                    onToggle: (val) => window.nodeLog?.('info', `showArrowsEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Show engine move arrows on board'
-                }
-            ];
-
-            // Create and append checkboxes in alphabetical order
-            checkboxes.forEach(config => {
-                togglesContent.appendChild(createLabeledCheckbox(config));
-            });
-
-            // ============================================================
-            // MOVETIME SLIDER
-            // ============================================================
-            const sliderContainer = document.createElement('div');
-            Object.assign(sliderContainer.style, {
-                display: 'flex',
-                alignItems: 'center',
-                marginTop: UI_SIZES.PADDING_SMALL
-            });
-
-            const sliderLabel = document.createElement('label');
-            sliderLabel.htmlFor = 'movetimeSlider';
-            sliderLabel.innerText = 'Movetime: ';
-            Object.assign(sliderLabel.style, {
-                color: UI_COLORS.TEXT_PRIMARY,
-                marginRight: '5px'
-            });
-
-            const slider = document.createElement('input');
-            slider.type = 'range';
-            slider.id = 'movetimeSlider';
-            slider.min = '0';
-            slider.max = '5';
-            slider.value = '1.5';
-            slider.step = '0.1';
-            Object.assign(slider.style, {
-                width: '100%',
-                boxSizing: 'border-box'
-            });
-
-            const sliderValue = document.createElement('span');
-            sliderValue.id = 'movetimeSliderText';
-            sliderValue.innerText = slider.value + 's';
-            Object.assign(sliderValue.style, {
-                color: UI_COLORS.TEXT_PRIMARY,
-                marginLeft: '5px'
-            });
-
-            window.movetime = Math.round(parseFloat(slider.value) * 1000) + 1;
-            slider.addEventListener('input', () => {
-                window.movetime = Math.round(parseFloat(slider.value) * 1000) + 1;
-                sliderValue.innerText = slider.value + 's';
-                if (typeof window.nodeLog === 'function') {
-                    window.nodeLog('info', `Movetime is now set to ${window.movetime}ms.`);
-                }
-            });
-
-            sliderContainer.appendChild(sliderLabel);
-            sliderContainer.appendChild(slider);
-            sliderContainer.appendChild(sliderValue);
-            togglesContent.appendChild(sliderContainer);
-
-            // Add indicator for dynamic speed control
-            const movetimeIndicator = document.createElement('div');
-            movetimeIndicator.id = 'movetimeIndicator';
-            movetimeIndicator.innerText = '(Controlled by Dynamic Speed setting)';
-            Object.assign(movetimeIndicator.style, {
-                color: UI_COLORS.TEXT_SECONDARY,
-                fontSize: UI_SIZES.FONT_SIZE_TINY,
-                marginTop: '5px',
-                marginLeft: '5px',
-                display: 'none'
-            });
-            togglesContent.appendChild(movetimeIndicator);
-
-            // ============================================================
-            // CONFIG BUTTON (in toggles section)
-            // ============================================================
-            const configButton = createButton('⚙ Advanced Config', () => {
-                window.open('http://localhost:3001/config', '_blank');
-            });
-            configButton.style.marginTop = UI_SIZES.PADDING_LARGE;
-            togglesContent.appendChild(configButton);
-
-            // Set initial state based on adjustSpeed config value
-            if (typeof window.getConfigValue === 'function') {
-                window.getConfigValue('adjustSpeedEnabled').then(adjustSpeedEnabled => {
-                    if (adjustSpeedEnabled === true) {
-                        slider.disabled = true;
-                        slider.style.opacity = '0.5';
-                        slider.style.cursor = 'not-allowed';
-                        movetimeIndicator.style.display = 'block';
-                    }
-                });
-            }
-
-            content.appendChild(togglesSection);
 
             // ============================================================
             // EVAL BAR SECTION (COLLAPSIBLE)
@@ -633,9 +439,7 @@ async function injectControls(page) {
             const evalBarSection = document.createElement('div');
             Object.assign(evalBarSection.style, {
                 display: 'flex',
-                flexDirection: 'column',
-                paddingTop: UI_SIZES.PADDING_MEDIUM,
-                borderTop: `1px solid ${UI_COLORS.BORDER_LIGHT}`
+                flexDirection: 'column'
             });
 
             const { header: evalBarHeader, contentWrapper: evalBarContent } =
@@ -643,6 +447,7 @@ async function injectControls(page) {
 
             evalBarContent.style.alignItems = 'center';
             evalBarContent.style.gap = UI_SIZES.PADDING_SMALL;
+            evalBarContent.style.paddingBottom = UI_SIZES.PADDING_SMALL;
 
             const evalLabel = document.createElement('span');
             evalLabel.id = 'evalLabel';
@@ -691,12 +496,14 @@ async function injectControls(page) {
             Object.assign(scoreboardSection.style, {
                 display: 'flex',
                 flexDirection: 'column',
-                paddingTop: UI_SIZES.PADDING_MEDIUM,
+                paddingTop: UI_SIZES.PADDING_SMALL,
                 borderTop: `1px solid ${UI_COLORS.BORDER_LIGHT}`
             });
 
             const { header: scoreboardHeader, contentWrapper: scoreboardContentWrapper } =
                 createCollapsibleSection('Scoreboard', false);
+
+            scoreboardContentWrapper.style.paddingBottom = UI_SIZES.PADDING_SMALL;
 
             const scoreboardContent = document.createElement('div');
             Object.assign(scoreboardContent.style, {
@@ -708,10 +515,10 @@ async function injectControls(page) {
                 border: `1px solid ${UI_COLORS.BORDER_LIGHT}`
             });
 
-            // Initialize scoreboard in memory only
-            window.botWins = 0;
-            window.botDraws = 0;
-            window.botLosses = 0;
+            // Load scoreboard from localStorage or initialize
+            window.botWins = parseInt(localStorage.getItem('botWins') || '0');
+            window.botDraws = parseInt(localStorage.getItem('botDraws') || '0');
+            window.botLosses = parseInt(localStorage.getItem('botLosses') || '0');
 
             // Create score columns
             const createScoreColumn = (label, value, color, valueId) => {
@@ -744,48 +551,248 @@ async function injectControls(page) {
                 return div;
             };
 
-            scoreboardContent.appendChild(createScoreColumn('Wins', 0, UI_COLORS.WINS, 'botWinsValue'));
-            scoreboardContent.appendChild(createScoreColumn('Draws', 0, UI_COLORS.DRAWS, 'botDrawsValue'));
-            scoreboardContent.appendChild(createScoreColumn('Losses', 0, UI_COLORS.LOSSES, 'botLossesValue'));
-
-            // Reset button
-            const resetButton = createButton('Reset Stats', () => {
-                window.botWins = 0;
-                window.botDraws = 0;
-                window.botLosses = 0;
-                document.getElementById('botWinsValue').innerText = '0';
-                document.getElementById('botDrawsValue').innerText = '0';
-                document.getElementById('botLossesValue').innerText = '0';
-                if (typeof window.nodeLog === 'function') {
-                    window.nodeLog('info', 'Scoreboard reset');
-                }
-            });
-            resetButton.style.marginTop = UI_SIZES.PADDING_SMALL;
-            resetButton.style.fontSize = UI_SIZES.FONT_SIZE_TINY;
+            scoreboardContent.appendChild(createScoreColumn('Wins', window.botWins, UI_COLORS.WINS, 'botWinsValue'));
+            scoreboardContent.appendChild(createScoreColumn('Draws', window.botDraws, UI_COLORS.DRAWS, 'botDrawsValue'));
+            scoreboardContent.appendChild(createScoreColumn('Losses', window.botLosses, UI_COLORS.LOSSES, 'botLossesValue'));
 
             scoreboardContentWrapper.appendChild(scoreboardContent);
-            scoreboardContentWrapper.appendChild(resetButton);
 
             scoreboardSection.appendChild(scoreboardHeader);
             scoreboardSection.appendChild(scoreboardContentWrapper);
             content.appendChild(scoreboardSection);
 
-            // Make scoreboard accessible globally for updates (in memory only)
+            // Make scoreboard accessible globally for updates (persisted to localStorage)
             window.updateScoreboard = (result) => {
                 if (result === 'win') {
                     window.botWins++;
                     document.getElementById('botWinsValue').innerText = window.botWins;
+                    localStorage.setItem('botWins', window.botWins);
                 } else if (result === 'draw') {
                     window.botDraws++;
                     document.getElementById('botDrawsValue').innerText = window.botDraws;
+                    localStorage.setItem('botDraws', window.botDraws);
                 } else if (result === 'loss') {
                     window.botLosses++;
                     document.getElementById('botLossesValue').innerText = window.botLosses;
+                    localStorage.setItem('botLosses', window.botLosses);
                 }
                 if (typeof window.nodeLog === 'function') {
                     window.nodeLog('info', `Scoreboard updated: ${result}`);
                 }
             };
+
+            // ============================================================
+            // TOGGLES SECTION (COLLAPSIBLE)
+            // ============================================================
+            const togglesSection = document.createElement('div');
+            Object.assign(togglesSection.style, {
+                display: 'flex',
+                flexDirection: 'column',
+                paddingTop: UI_SIZES.PADDING_SMALL,
+                borderTop: `1px solid ${UI_COLORS.BORDER_LIGHT}`
+            });
+
+            const { header: togglesHeader, contentWrapper: togglesContent } =
+                createCollapsibleSection('Controls', false);
+
+            togglesSection.appendChild(togglesHeader);
+            togglesSection.appendChild(togglesContent);
+
+            // ============================================================
+            // CHECKBOXES
+            // ============================================================
+            const checkboxes = [
+                {
+                    id: 'automoveCheckbox',
+                    labelText: 'Auto Move',
+                    windowProp: 'automoveEnabled',
+                    configKey: 'automoveEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `Automoving is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'Auto-play calculated moves.'
+                },
+                {
+                    id: 'autoStartNewGameCheckbox',
+                    labelText: 'Auto Queue',
+                    windowProp: 'autoStartNewGameEnabled',
+                    configKey: 'autoStartNewGame',
+                    onToggle: (val) => window.nodeLog?.('info', `autoStartNewGameEnabled is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'Start next game automatically after a configurable delay.'
+                },
+                {
+                    id: 'autoSendRematchCheckbox',
+                    labelText: 'Auto Rematch',
+                    windowProp: 'autoSendRematchEnabled',
+                    configKey: 'autoSendRematch',
+                    onToggle: (val) => window.nodeLog?.('info', `autoSendRematchEnabled is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'Automatically send rematch offer after game ends. Rematches take priority over auto queue.'
+                },
+                {
+                    id: 'badOpeningCheckbox',
+                    labelText: 'Bongcloud Opening',
+                    windowProp: 'badOpeningEnabled',
+                    configKey: 'badOpeningEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `DoBadOpenings is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'You already know what this does.'
+                },
+                {
+                    id: 'adjustSpeedCheckbox',
+                    labelText: 'Dynamic Speed',
+                    windowProp: 'adjustSpeedEnabled',
+                    configKey: 'adjustSpeedEnabled',
+                    onToggle: (val) => {
+                        window.nodeLog?.('info', `adjustSpeedEnabled is now ${val ? 'enabled' : 'disabled'}.`);
+                        const movetimeSlider = document.getElementById('movetimeSlider');
+                        const movetimeIndicator = document.getElementById('movetimeIndicator');
+                        if (val) {
+                            movetimeSlider.disabled = true;
+                            movetimeSlider.style.opacity = '0.5';
+                            movetimeSlider.style.cursor = 'not-allowed';
+                            if (movetimeIndicator) movetimeIndicator.style.display = 'block';
+                        } else {
+                            movetimeSlider.disabled = false;
+                            movetimeSlider.style.opacity = '1';
+                            movetimeSlider.style.cursor = 'pointer';
+                            if (movetimeIndicator) movetimeIndicator.style.display = 'none';
+                        }
+                    },
+                    tooltip: 'Vary move speed based on time remaining'
+                },
+                {
+                    id: 'criticalTimeCheckbox',
+                    labelText: 'Emergency Mode',
+                    windowProp: 'criticalTimeEnabled',
+                    configKey: 'criticalTimeEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `criticalTimeEnabled is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'Ultra fast moves when low on time (overrides everything)'
+                },
+                {
+                    id: 'gaslightingCheckbox',
+                    labelText: 'Gaslight Mode',
+                    windowProp: 'gaslightingEnabled',
+                    configKey: 'gaslightingEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `Gaslighting is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'Play bad moves, let them think they\'re winning, then crush them'
+                },
+                {
+                    id: 'pressThankYouCheckbox',
+                    labelText: 'Press Thank You',
+                    windowProp: 'pressThankYouEnabled',
+                    configKey: 'pressThankYou',
+                    onToggle: (val) => window.nodeLog?.('info', `pressThankYouEnabled is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'Click "Thank You" after winning. Rub it in.'
+                },
+                {
+                    id: 'showArrowsCheckbox',
+                    labelText: 'Show Arrows',
+                    windowProp: 'showArrowsEnabled',
+                    configKey: 'showArrowsEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `showArrowsEnabled is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'Show engine move arrows on board'
+                },
+                {
+                    id: 'spamMoretimeCheckbox',
+                    labelText: 'Mate BM',
+                    windowProp: 'spamMoretimeEnabled',
+                    configKey: 'spamMoretimeEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `spamMoretimeEnabled is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'Let your opponent appreciate the moment before mating them.'
+                }
+            ];
+
+            // Create and append checkboxes in alphabetical order
+            checkboxes.forEach(config => {
+                togglesContent.appendChild(createLabeledCheckbox(config));
+            });
+
+            // ============================================================
+            // MOVETIME SLIDER
+            // ============================================================
+            const sliderContainer = document.createElement('div');
+            Object.assign(sliderContainer.style, {
+                display: 'flex',
+                alignItems: 'center',
+                marginTop: UI_SIZES.PADDING_SMALL
+            });
+
+            const sliderLabel = document.createElement('label');
+            sliderLabel.htmlFor = 'movetimeSlider';
+            sliderLabel.innerText = 'Movetime: ';
+            Object.assign(sliderLabel.style, {
+                color: UI_COLORS.TEXT_PRIMARY,
+                marginRight: '5px'
+            });
+
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.id = 'movetimeSlider';
+            slider.min = '0';
+            slider.max = '5';
+            slider.step = '0.1';
+            const savedValue = localStorage.getItem('movetimeSliderValue') || '1.5';
+            slider.value = parseFloat(savedValue).toFixed(1);
+            Object.assign(slider.style, {
+                width: '100%',
+                boxSizing: 'border-box'
+            });
+
+            const sliderValue = document.createElement('span');
+            sliderValue.id = 'movetimeSliderText';
+            sliderValue.innerText = slider.value + 's';
+            Object.assign(sliderValue.style, {
+                color: UI_COLORS.TEXT_PRIMARY,
+                marginLeft: '5px'
+            });
+
+            window.movetime = Math.round(parseFloat(slider.value) * 1000) + 1;
+            slider.addEventListener('input', () => {
+                window.movetime = Math.round(parseFloat(slider.value) * 1000) + 1;
+                sliderValue.innerText = slider.value + 's';
+                localStorage.setItem('movetimeSliderValue', slider.value);
+                if (typeof window.nodeLog === 'function') {
+                    window.nodeLog('info', `Movetime is now set to ${window.movetime}ms.`);
+                }
+            });
+
+            sliderContainer.appendChild(sliderLabel);
+            sliderContainer.appendChild(slider);
+            sliderContainer.appendChild(sliderValue);
+            togglesContent.appendChild(sliderContainer);
+
+            // Add indicator for dynamic speed control
+            const movetimeIndicator = document.createElement('div');
+            movetimeIndicator.id = 'movetimeIndicator';
+            movetimeIndicator.innerText = '(Controlled by Dynamic Speed setting)';
+            Object.assign(movetimeIndicator.style, {
+                color: UI_COLORS.TEXT_SECONDARY,
+                fontSize: UI_SIZES.FONT_SIZE_TINY,
+                marginTop: '5px',
+                marginLeft: '5px',
+                display: 'none'
+            });
+            togglesContent.appendChild(movetimeIndicator);
+
+            // ============================================================
+            // CONFIG BUTTON (in toggles section)
+            // ============================================================
+            const configButton = createButton('⚙ Advanced Config', () => {
+                window.open('http://localhost:3001/config', '_blank');
+            });
+            configButton.style.marginTop = UI_SIZES.PADDING_LARGE;
+            togglesContent.appendChild(configButton);
+
+            // Set initial state based on adjustSpeed config value
+            if (typeof window.getConfigValue === 'function') {
+                window.getConfigValue('adjustSpeedEnabled').then(adjustSpeedEnabled => {
+                    if (adjustSpeedEnabled === true) {
+                        slider.disabled = true;
+                        slider.style.opacity = '0.5';
+                        slider.style.cursor = 'not-allowed';
+                        movetimeIndicator.style.display = 'block';
+                    }
+                });
+            }
+
+            content.appendChild(togglesSection);
 
             // ============================================================
             // ASSEMBLE & APPEND

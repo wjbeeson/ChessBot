@@ -12,15 +12,6 @@
   "criticalTimeThreshold": 5,
   "criticalTimeMovetime": 100,
   "autoStartDelay": 5000,
-  "autoStartNewGame": true,
-  "autoSendRematch": true,
-  "pressThankYou": true,
-  "automoveEnabled": true,
-  "badOpeningEnabled": true,
-  "adjustSpeedEnabled": true,
-  "gaslightingEnabled": true,
-  "showArrowsEnabled": true,
-  "headlessMode": false,
   "lichessBaseUrl": "https://lichess.org/",
   "smackModeMovetime": 300,
   "smackModeVariance": 50,
@@ -30,6 +21,9 @@
   "smackModeMaxMoves": 40,
   "smackModeMinTime": 11,
   "smackModeBackgroundColor": "#61000a",
+  "spamMoretimeSeconds": 6000,
+  "mateBmDelaySeconds": 10,
+  "mateBmMinimumTimeLeft": 3,
   "timeThresholds": {
     "5": {
       "movetime": 300,
@@ -55,5 +49,15 @@
       "movetime": 1000,
       "variance": 300
     }
-  }
+  },
+  "automoveEnabled": true,
+  "autoStartNewGame": true,
+  "autoSendRematch": true,
+  "pressThankYou": true,
+  "badOpeningEnabled": false,
+  "adjustSpeedEnabled": true,
+  "gaslightingEnabled": false,
+  "showArrowsEnabled": false,
+  "spamMoretimeEnabled": true,
+  "headlessMode": false
 }

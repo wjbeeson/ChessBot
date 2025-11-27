@@ -1,6 +1,22 @@
 /**
  * Lichess Chess Bot
  * Main bot logic for playing on Lichess
+ *
+ * ⚠️ CRITICAL: VERSION NUMBER CORRUPTION WARNING ⚠️
+ *
+ * Lichess WebSocket message version numbers (messageData.v) are UNRELIABLE!
+ * They increment for ALL messages, not just moves:
+ * - Clock updates (moretime/clockInc)
+ * - Chat messages
+ * - Presence updates
+ * - Other non-move events
+ *
+ * NEVER use messageData.v for game logic. ALWAYS use:
+ * - gameState.moveCounter (actual moves only)
+ * - gameState.isWhitesTurn() (turn detection)
+ * - gameState.isBotsTurn() (bot's turn detection)
+ *
+ * Using messageData.v causes the bot to generate moves for the wrong color!
  */
 
 const puppeteer = require('puppeteer');
@@ -170,6 +186,16 @@ function determineGameResult(winner, statusName, botColor) {
 async function handleGameEnd(page, messageData) {
     const config = loadConfig();
 
+    // Reset moretime spam flag if running
+    await page.evaluate(() => {
+        if (window.moretimeSpamInProgress) {
+            window.moretimeSpamInProgress = false;
+            if (typeof window.nodeLog === 'function') {
+                window.nodeLog('info', '[SPAM MORETIME] Reset moretime spam flag (game ended)');
+            }
+        }
+    });
+
     // Update scoreboard based on game outcome
     try {
         const winner = messageData.d?.winner;
@@ -264,9 +290,10 @@ async function processMovetimeSettings(page, timeLeft, adjustSpeedEnabled, gasli
  * @param {Page} page - Puppeteer page instance
  * @param {string} fen - Current position FEN
  * @param {boolean} badOpeningEnabled - Whether bad opening is enabled
+ * @param {boolean} automoveEnabled - Whether automove is enabled
  * @returns {Promise<boolean>} True if bad opening move was made
  */
-async function tryBadOpeningMove(page, fen, badOpeningEnabled) {
+async function tryBadOpeningMove(page, fen, badOpeningEnabled, automoveEnabled) {
     if (!badOpeningEnabled || !gameState.badOpeningOngoing) {
         return false;
     }
@@ -275,7 +302,12 @@ async function tryBadOpeningMove(page, fen, badOpeningEnabled) {
     if (badOpeningMove) {
         // Validate move (converts from e2e4 format)
         if (await isValidMove(fen, badOpeningMove.substring(0, 2), badOpeningMove.substring(2, 4))) {
-            await sendMove(page, badOpeningMove, 0, gameState.playerColorIsWhite);
+            if (automoveEnabled) {
+                await sendMove(page, badOpeningMove, 0, gameState.playerColorIsWhite);
+                logger.info(`Bongcloud move sent: ${badOpeningMove}`);
+            } else {
+                logger.info(`Bongcloud move calculated but not sent (automove disabled): ${badOpeningMove}`);
+            }
             return true;
         }
     }
@@ -391,14 +423,22 @@ function handleRematchDetection(messageData) {
 
 /**
  * Attempts to detect and set player color from the page
+ * Only detects at the start of the game (moveCounter === 0) to avoid
+ * false detection from messages like "White + 15 seconds" during moretime
  */
 async function detectPlayerColor(page, messageData) {
     const shouldDetectColor = messageData === 0 || messageData.t === WEBSOCKET_MESSAGE_TYPES.CROWD;
     if (!shouldDetectColor) return;
 
+    // Only detect color at the start of the game
+    if (gameState.moveCounter !== 0) {
+        return;
+    }
+
     const colorCode = await getPlayerColor(page);
     if (colorCode) {
         gameState.setPlayerColor(colorCode === "w");
+        logger.info(`[COLOR DETECT] Player color set to: ${colorCode === "w" ? "WHITE" : "BLACK"}`);
     }
 }
 
@@ -425,23 +465,50 @@ async function handleFirstMoveAsWhite(page, isAutomoveEnabled) {
 
 /**
  * Processes a move message and handles bot's turn
+ *
+ * IMPORTANT: Never use messageData.v (version number) for game logic!
+ * Version numbers get corrupted by moretime clock updates and other non-move messages.
+ * Always use gameState.moveCounter and gameState.isWhitesTurn() instead.
+ *
+ * Why this matters:
+ * - When moretime is sent, Lichess sends back clockInc, message, and bare version updates
+ * - These increment the version counter without actual moves happening
+ * - Using messageData.v for turn detection causes the bot to:
+ *   1. Think it's the wrong player's turn
+ *   2. Generate moves for the opponent's pieces
+ *   3. Send illegal moves that get rejected by Lichess
  */
 async function processMoveMessage(page, messageData) {
-    // Increment move counter
-    if (messageData.d?.uci) {
-        gameState.incrementMoveCounter();
-        logger.info("moveCounter " + gameState.moveCounter);
+    logger.info(`[PROCESS MSG] Received move message - version:${messageData.v}, hasUCI:${!!messageData.d?.uci}, uci:${messageData.d?.uci || 'NONE'}`);
+
+    // Only process if there's an actual move (not just a clock update from moretime)
+    if (!messageData.d?.uci) {
+        logger.info('[PROCESS MSG] No UCI in message, skipping (likely clock update)');
+        return;
     }
 
-    // Check if it's bot's turn
-    if (!gameState.isBotsTurn(messageData.v)) {
+    // Increment move counter
+    gameState.incrementMoveCounter();
+    logger.info(`[PROCESS MSG] moveCounter incremented to ${gameState.moveCounter}`);
+
+    // Check if it's bot's turn (uses moveCounter instead of version to avoid clock update issues)
+    const isBotTurn = gameState.isBotsTurn();
+    logger.info(`[PROCESS MSG] isBotsTurn check: ${isBotTurn}`);
+
+    if (!isBotTurn) {
+        logger.info('[PROCESS MSG] Not bot\'s turn, clearing arrows and returning');
         await clearPreviousArrows(page);
         return;
     }
 
+    logger.info('[PROCESS MSG] Bot\'s turn confirmed, proceeding with move calculation');
+
     // Assemble FEN notation
-    const isWhitesTurn = messageData.v % 2 === 0;
+    // CRITICAL: Use gameState.isWhitesTurn() NOT messageData.v
+    // messageData.v gets corrupted by moretime clock updates, causing wrong moves
+    const isWhitesTurn = gameState.isWhitesTurn();
     const fen = messageData.d.fen + (isWhitesTurn ? " w" : " b");
+    logger.info(`[PROCESS MSG] Assembled FEN with turn indicator: ${isWhitesTurn ? 'white' : 'black'} (moveCounter: ${gameState.moveCounter})`);
 
     // Fetch UI settings in parallel
     const [
@@ -472,7 +539,7 @@ async function processMoveMessage(page, messageData) {
     await processMovetimeSettings(page, timeLeftSeconds, isAdjustSpeedEnabled, isGaslightingEnabled);
 
     // Try bad opening move (Bongcloud)
-    const badOpeningMoveHandled = await tryBadOpeningMove(page, fen, isBadOpeningEnabled);
+    const badOpeningMoveHandled = await tryBadOpeningMove(page, fen, isBadOpeningEnabled, isAutomoveEnabled);
     if (badOpeningMoveHandled) return;
 
     // Calculate best move
@@ -482,6 +549,58 @@ async function processMoveMessage(page, messageData) {
     logger.info("move: " + moveInfo.move);
     logger.info(`automoveEnabled: ${isAutomoveEnabled}`);
 
+    // Spam moretime if bot has mate (non-blocking, once per game)
+    const isSpamMoretimeEnabled = await fetchPageVariable(page, "spamMoretimeEnabled");
+    if (isSpamMoretimeEnabled && moveInfo.scoreunit === 'mate' && moveInfo.score > 0 && !gameState.moretimeSpamSent) {
+        gameState.moretimeSpamSent = true;
+        const config = loadConfig();
+        const timesToSpam = Math.floor(config.spamMoretimeSeconds / 15);
+        logger.info(`[SPAM MORETIME] Bot has mate! Sending ${timesToSpam} moretime requests (${config.spamMoretimeSeconds} seconds)...`);
+
+        // Send moretime requests asynchronously (non-blocking)
+        page.evaluate((count) => {
+            if (window.activeWebSocket && !window.moretimeSpamInProgress) {
+                window.moretimeSpamInProgress = true;
+                let sentCount = 0;
+
+                const sendMoretime = () => {
+                    if (sentCount < count) {
+                        try {
+                            const wsState = window.activeWebSocket.readyState;
+                            if (wsState === 1) { // WebSocket.OPEN
+                                window.activeWebSocket.send(JSON.stringify({ t: 'moretime' }));
+                                sentCount++;
+                                if (typeof window.nodeLog === 'function') {
+                                    window.nodeLog('debug', `[SPAM MORETIME] Sent moretime request ${sentCount}/${count}`);
+                                }
+                                setTimeout(sendMoretime, 100);
+                            } else {
+                                if (typeof window.nodeLog === 'function') {
+                                    window.nodeLog('error', `[SPAM MORETIME] WebSocket not OPEN (state: ${wsState}), stopping spam`);
+                                }
+                                window.moretimeSpamInProgress = false;
+                            }
+                        } catch (e) {
+                            if (typeof window.nodeLog === 'function') {
+                                window.nodeLog('error', `[SPAM MORETIME] Error: ${e.message}`);
+                            }
+                            window.moretimeSpamInProgress = false;
+                        }
+                    } else {
+                        window.moretimeSpamInProgress = false;
+                        if (typeof window.nodeLog === 'function') {
+                            window.nodeLog('info', `[SPAM MORETIME] Completed sending ${count} moretime requests`);
+                        }
+                    }
+                };
+
+                sendMoretime();
+            }
+        }, timesToSpam).catch(err => {
+            logger.error('[SPAM MORETIME] Error:', err.message);
+        });
+    }
+
     // Mark eval bar as initialized
     if (!gameState.evalBarAdded) {
         gameState.markEvalBarAdded();
@@ -489,8 +608,32 @@ async function processMoveMessage(page, messageData) {
 
     // Send move if automove is enabled
     if (isAutomoveEnabled) {
+        // If mate was detected and we haven't delayed yet, delay once at the beginning
+        // This gives time for moretime spam to start while opponent watches
+        if (gameState.moretimeSpamSent && !gameState.mateBmDelayed) {
+            const config = loadConfig();
+            const delaySeconds = config.mateBmDelaySeconds || 10;
+            const minimumTimeLeft = config.mateBmMinimumTimeLeft || 3;
+
+            // Account for movetime that will be used on future moves
+            const movetimeSeconds = currentMovetime / 1000;
+            const safetyBuffer = minimumTimeLeft + movetimeSeconds;
+
+            // Check if we have enough time to safely delay
+            // Need: safety buffer + delay time
+            if (timeLeftSeconds && timeLeftSeconds > safetyBuffer + delaySeconds) {
+                logger.info(`[MATE BM] Delaying first move of mate sequence by ${delaySeconds} seconds (${timeLeftSeconds.toFixed(1)}s left, need ${(safetyBuffer + delaySeconds).toFixed(1)}s [safety: ${minimumTimeLeft}s + movetime: ${movetimeSeconds.toFixed(1)}s + delay: ${delaySeconds}s])`);
+                gameState.mateBmDelayed = true;
+                await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
+                logger.info(`[MATE BM] Delay complete, starting mate sequence now`);
+            } else {
+                logger.info(`[MATE BM] Skipping delay - insufficient time (${timeLeftSeconds?.toFixed(1)}s left, need ${(safetyBuffer + delaySeconds).toFixed(1)}s)`);
+                gameState.mateBmDelayed = true; // Mark as delayed even if skipped, so we don't try again
+            }
+        }
+
         await sendMove(page, moveInfo.move, moveInfo.score, gameState.playerColorIsWhite);
-        logger.info(`Move sent: ${moveInfo.move}`);
+        logger.info(`[MOVE SEND] Move sent: ${moveInfo.move}`);
     } else {
         logger.info("Automove is disabled, move not sent");
     }
@@ -525,7 +668,7 @@ async function definePageMessageHandler(page) {
     // Handler for incoming WebSocket messages
     await page.exposeFunction('handleWebSocketMessage', async (message) => {
         const messageData = JSON.parse(message);
-        logger.debug("Websocket Traffic (IN): " + JSON.stringify(messageData));
+        logger.debug(`Websocket Traffic (IN): ${JSON.stringify(messageData)} | botIsWhite: ${gameState.playerColorIsWhite} | moveCounter: ${gameState.moveCounter}`);
 
         // Detect rematch acceptance
         handleRematchDetection(messageData);
@@ -560,7 +703,12 @@ async function definePageMessageHandler(page) {
         if (firstMoveHandled) return;
 
         // Only process move messages from this point
-        if (messageData.t !== WEBSOCKET_MESSAGE_TYPES.MOVE) return;
+        if (messageData.t !== WEBSOCKET_MESSAGE_TYPES.MOVE) {
+            logger.debug(`[MSG FILTER] Ignoring message type: ${messageData.t || 'undefined'}`);
+            return;
+        }
+
+        logger.info(`[MSG FILTER] Processing MOVE message - version:${messageData.v}, hasUCI:${!!messageData.d?.uci}, uci:${messageData.d?.uci || 'NONE'}`);
 
         // Process move and make bot's move
         await processMoveMessage(page, messageData);

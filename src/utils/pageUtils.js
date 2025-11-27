@@ -11,13 +11,25 @@ const { SCORE_UNIT, EVAL_SLIDER, TIMEOUTS, WEBSOCKET_MESSAGE_TYPES } = require('
 async function sendWebSocketMessage(page, message) {
     await page.evaluate((msg) => {
         if (window.activeWebSocket) {
-            window.activeWebSocket.send(msg);
+            const wsState = window.activeWebSocket.readyState;
+            const stateNames = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
             if (typeof window.nodeLog === 'function') {
-                window.nodeLog('debug', 'Move sent!');
+                window.nodeLog('info', `[WS SEND] State: ${stateNames[wsState]}, Msg: ${msg.substring(0, 150)}`);
+            }
+
+            if (wsState === 1) { // WebSocket.OPEN
+                window.activeWebSocket.send(msg);
+                if (typeof window.nodeLog === 'function') {
+                    window.nodeLog('info', '[WS SEND] Successfully sent');
+                }
+            } else {
+                if (typeof window.nodeLog === 'function') {
+                    window.nodeLog('error', `[WS SEND] FAILED - WebSocket not OPEN (state: ${stateNames[wsState]})`);
+                }
             }
         } else {
             if (typeof window.nodeLog === 'function') {
-                window.nodeLog('error', 'No active WebSocket connection.');
+                window.nodeLog('error', '[WS SEND] FAILED - No active WebSocket connection');
             }
         }
     }, message);
@@ -128,11 +140,11 @@ async function updateScore(page, score, playerColorIsWhite, scoreUnit = SCORE_UN
             let sliderValue;
 
             if (scoreUnit === SCORE_UNIT.MATE) {
-                // Handle mate scores
-                const mateIn = playerColorIsWhite ? -score : score;
-                displayText = mateIn > 0 ? `M${mateIn}` : `-M${Math.abs(mateIn)}`;
+                // Handle mate scores - score is always from white's perspective
+                // Positive score = white has mate, negative = black has mate
+                displayText = score > 0 ? `M${score}` : `-M${Math.abs(score)}`;
                 // Max out slider for visual indication
-                sliderValue = mateIn > 0 ? EVAL_SLIDER.MATE_VALUE : -EVAL_SLIDER.MATE_VALUE;
+                sliderValue = score > 0 ? EVAL_SLIDER.MATE_VALUE : -EVAL_SLIDER.MATE_VALUE;
             } else {
                 // Handle centipawn scores
                 if (playerColorIsWhite) {

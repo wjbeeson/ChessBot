@@ -364,6 +364,28 @@
                 </div>
             </div>
 
+            <div class="section">
+                <h2>😈 Mate BM Settings</h2>
+                <p style="color: #b0bec5; font-size: 13px; margin-bottom: 15px;">
+                    When the bot detects mate in its favor, spam moretime requests to give opponent more time before delivering the final blow.
+                </p>
+                <div class="form-group">
+                    <label for="spamMoretimeSeconds">Time to Add (seconds)</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">How much time to add when mate is detected (must be in 15-second increments). Bot will send (seconds / 15) requests.</p>
+                    <input type="number" id="spamMoretimeSeconds" name="spamMoretimeSeconds" min="15" step="15">
+                </div>
+                <div class="form-group">
+                    <label for="mateBmDelaySeconds">Delay Before Mating (seconds)</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">How long to wait after detecting mate before playing the winning move. Allows time for moretime spam to complete.</p>
+                    <input type="number" id="mateBmDelaySeconds" name="mateBmDelaySeconds" min="0" step="1">
+                </div>
+                <div class="form-group">
+                    <label for="mateBmMinimumTimeLeft">Minimum Time Safety (seconds)</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Minimum time bot must have left on its clock before it will delay the winning move. Prevents flagging.</p>
+                    <input type="number" id="mateBmMinimumTimeLeft" name="mateBmMinimumTimeLeft" min="1" step="1">
+                </div>
+            </div>
+
             <div class="button-group">
                 <button type="submit" class="save-btn">💾 Save Configuration</button>
                 <button type="button" class="reset-btn" onclick="loadConfig()">🔄 Reset to Current</button>
@@ -395,6 +417,9 @@
             document.getElementById('smackModeMaxMoves').value = config.smackModeMaxMoves;
             document.getElementById('smackModeMinTime').value = config.smackModeMinTime;
             document.getElementById('smackModeBackgroundColor').value = config.smackModeBackgroundColor;
+            document.getElementById('spamMoretimeSeconds').value = config.spamMoretimeSeconds || 15;
+            document.getElementById('mateBmDelaySeconds').value = config.mateBmDelaySeconds || 10;
+            document.getElementById('mateBmMinimumTimeLeft').value = config.mateBmMinimumTimeLeft || 3;
 
             renderThresholds(config.timeThresholds);
         }
@@ -504,6 +529,10 @@
         document.getElementById('configForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
+            // Load current config first to preserve fields not in the form
+            const currentResponse = await fetch('/get-config');
+            const currentConfig = await currentResponse.json();
+
             const timeThresholds = {};
             const thresholdGroups = document.querySelectorAll('.threshold-group');
 
@@ -526,7 +555,10 @@
                 }
             });
 
+            // Merge form values into current config (preserves fields not in form like enginePath, port, toggles)
             const config = {
+                ...currentConfig, // Start with all current config values
+                // Override only the fields from the form
                 gaslightLines: parseInt(document.getElementById('gaslightLines').value),
                 maxScoreLoss: Math.round(parseFloat(document.getElementById('maxScoreLoss').value) * 100),
                 scoreFloor: Math.round(parseFloat(document.getElementById('scoreFloor').value) * 100),
@@ -546,6 +578,9 @@
                 smackModeMaxMoves: parseInt(document.getElementById('smackModeMaxMoves').value),
                 smackModeMinTime: parseInt(document.getElementById('smackModeMinTime').value),
                 smackModeBackgroundColor: document.getElementById('smackModeBackgroundColor').value,
+                spamMoretimeSeconds: parseInt(document.getElementById('spamMoretimeSeconds').value),
+                mateBmDelaySeconds: parseInt(document.getElementById('mateBmDelaySeconds').value),
+                mateBmMinimumTimeLeft: parseInt(document.getElementById('mateBmMinimumTimeLeft').value),
                 timeThresholds: timeThresholds
             };
 

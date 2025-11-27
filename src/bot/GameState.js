@@ -22,6 +22,8 @@ class GameState {
         this.smackModeEnabled = false;
         this.evalBarAdded = false;
         this.initialGameTime = null;
+        this.moretimeSpamSent = false;
+        this.mateBmDelayed = false;
     }
 
     /**
@@ -80,20 +82,30 @@ class GameState {
     }
 
     /**
-     * Checks if it's the bot's turn based on move version and color
-     * @param {number} moveVersion - The move version number from WebSocket
+     * Determines whose turn it is based on moveCounter
+     * IMPORTANT: Always use this instead of message version numbers (messageData.v)
+     * because version numbers get corrupted by clock updates during moretime spam
+     * @returns {boolean} True if it's white's turn, false if black's turn
+     */
+    isWhitesTurn() {
+        // After an even number of moves (0, 2, 4...) it's white's turn
+        // After an odd number of moves (1, 3, 5...) it's black's turn
+        return this.moveCounter % 2 === 0;
+    }
+
+    /**
+     * Checks if it's the bot's turn based on move counter and color
+     * Uses moveCounter instead of version to avoid issues with clock updates during moretime spam
      * @returns {boolean} True if it's the bot's turn to make a move
      */
-    isBotsTurn(moveVersion) {
-        // Version is ODD after white moves (1, 3, 5...) - black's turn
-        // Version is EVEN after black moves (2, 4, 6...) - white's turn
-        const isWhitesTurn = moveVersion % 2 === 0;
+    isBotsTurn() {
+        const isWhitesTurn = this.isWhitesTurn();
 
         // Bot should move when it's the bot's color's turn:
-        // - Bot is white AND it's white's turn (version is even)
-        // - Bot is black AND it's black's turn (version is odd / isWhitesTurn is false)
+        // - Bot is white AND it's white's turn (moveCounter is even)
+        // - Bot is black AND it's black's turn (moveCounter is odd)
         const result = this.playerColorIsWhite === isWhitesTurn;
-        logger.debug(`isBotsTurn - version=${moveVersion}, isWhitesTurn=${isWhitesTurn}, botIsWhite=${this.playerColorIsWhite}, result=${result}`);
+        logger.debug(`isBotsTurn - moveCounter=${this.moveCounter}, isWhitesTurn=${isWhitesTurn}, botIsWhite=${this.playerColorIsWhite}, result=${result}`);
         return result;
     }
 }
