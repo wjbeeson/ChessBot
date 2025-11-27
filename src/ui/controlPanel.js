@@ -601,7 +601,7 @@ async function injectControls(page) {
             // ============================================================
             // CHECKBOXES
             // ============================================================
-            const checkboxes = [
+            const standardCheckboxes = [
                 {
                     id: 'automoveCheckbox',
                     labelText: 'Auto Move',
@@ -625,14 +625,6 @@ async function injectControls(page) {
                     configKey: 'autoSendRematch',
                     onToggle: (val) => window.nodeLog?.('info', `autoSendRematchEnabled is now ${val ? 'enabled' : 'disabled'}.`),
                     tooltip: 'Automatically send rematch offer after game ends. Rematches take priority over auto queue.'
-                },
-                {
-                    id: 'badOpeningCheckbox',
-                    labelText: 'Bongcloud Opening',
-                    windowProp: 'badOpeningEnabled',
-                    configKey: 'badOpeningEnabled',
-                    onToggle: (val) => window.nodeLog?.('info', `DoBadOpenings is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'You already know what this does.'
                 },
                 {
                     id: 'adjustSpeedCheckbox',
@@ -666,6 +658,25 @@ async function injectControls(page) {
                     tooltip: 'Ultra fast moves when low on time (overrides everything)'
                 },
                 {
+                    id: 'showArrowsCheckbox',
+                    labelText: 'Show Arrows',
+                    windowProp: 'showArrowsEnabled',
+                    configKey: 'showArrowsEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `showArrowsEnabled is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'Show engine move arrows on board'
+                }
+            ];
+
+            const badMannersCheckboxes = [
+                {
+                    id: 'badOpeningCheckbox',
+                    labelText: 'Bongcloud Opening',
+                    windowProp: 'badOpeningEnabled',
+                    configKey: 'badOpeningEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `DoBadOpenings is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'You already know what this does.'
+                },
+                {
                     id: 'gaslightingCheckbox',
                     labelText: 'Gaslight Mode',
                     windowProp: 'gaslightingEnabled',
@@ -674,33 +685,52 @@ async function injectControls(page) {
                     tooltip: 'Play bad moves, let them think they\'re winning, then crush them'
                 },
                 {
+                    id: 'spamMoretimeCheckbox',
+                    labelText: 'Mate Spam Time',
+                    windowProp: 'spamMoretimeEnabled',
+                    configKey: 'spamMoretimeEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `spamMoretimeEnabled is now ${val ? 'enabled' : 'disabled'}.`),
+                    tooltip: 'Spam moretime requests when bot has mate'
+                },
+                {
                     id: 'pressThankYouCheckbox',
                     labelText: 'Press Thank You',
                     windowProp: 'pressThankYouEnabled',
                     configKey: 'pressThankYou',
                     onToggle: (val) => window.nodeLog?.('info', `pressThankYouEnabled is now ${val ? 'enabled' : 'disabled'}.`),
                     tooltip: 'Click "Thank You" after winning. Rub it in.'
-                },
-                {
-                    id: 'showArrowsCheckbox',
-                    labelText: 'Show Arrows',
-                    windowProp: 'showArrowsEnabled',
-                    configKey: 'showArrowsEnabled',
-                    onToggle: (val) => window.nodeLog?.('info', `showArrowsEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Show engine move arrows on board'
-                },
-                {
-                    id: 'spamMoretimeCheckbox',
-                    labelText: 'Mate BM',
-                    windowProp: 'spamMoretimeEnabled',
-                    configKey: 'spamMoretimeEnabled',
-                    onToggle: (val) => window.nodeLog?.('info', `spamMoretimeEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Let your opponent appreciate the moment before mating them.'
                 }
             ];
 
-            // Create and append checkboxes in alphabetical order
-            checkboxes.forEach(config => {
+            // Create Standard subsection
+            const standardSubheader = document.createElement('div');
+            standardSubheader.innerText = 'Standard';
+            Object.assign(standardSubheader.style, {
+                color: UI_COLORS.TEXT_SECONDARY,
+                fontSize: UI_SIZES.FONT_SIZE_SMALL,
+                fontWeight: 'bold',
+                marginTop: UI_SIZES.PADDING_SMALL,
+                marginBottom: UI_SIZES.PADDING_TINY
+            });
+            togglesContent.appendChild(standardSubheader);
+
+            standardCheckboxes.forEach(config => {
+                togglesContent.appendChild(createLabeledCheckbox(config));
+            });
+
+            // Create Bad Manners subsection
+            const badMannersSubheader = document.createElement('div');
+            badMannersSubheader.innerText = 'Bad Manners';
+            Object.assign(badMannersSubheader.style, {
+                color: UI_COLORS.TEXT_SECONDARY,
+                fontSize: UI_SIZES.FONT_SIZE_SMALL,
+                fontWeight: 'bold',
+                marginTop: UI_SIZES.PADDING_MEDIUM,
+                marginBottom: UI_SIZES.PADDING_TINY
+            });
+            togglesContent.appendChild(badMannersSubheader);
+
+            badMannersCheckboxes.forEach(config => {
                 togglesContent.appendChild(createLabeledCheckbox(config));
             });
 
