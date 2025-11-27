@@ -28,6 +28,7 @@ const logger = createLogger('BOT');
 // ============================================================================
 
 const gameState = new GameState();
+let rematchAccepted = false;
 
 // ============================================================================
 // WEBSOCKET INTERCEPTION
@@ -208,13 +209,13 @@ async function handleGameEnd(page, messageData) {
         logger.info("[THANK YOU] Skipped: pressThankYou is disabled in config");
     }
 
-    // Send rematch offer if enabled
+    // Send rematch offer if enabled (non-blocking)
     logger.info(`[REMATCH] config.autoSendRematch = ${config.autoSendRematch}`);
     if (config.autoSendRematch) {
-        logger.info("[REMATCH] Attempting to send rematch offer...");
+        logger.info("[REMATCH] Sending rematch offer...");
         try {
             await sendRematchOffer(page);
-            logger.info("[REMATCH] Successfully sent rematch offer.");
+            logger.info("[REMATCH] Rematch offer sent. If opponent accepts, will rematch. Otherwise will auto-queue.");
         } catch (e) {
             logger.error("[REMATCH] Error sending rematch offer:", e.message);
         }
@@ -222,6 +223,7 @@ async function handleGameEnd(page, messageData) {
         logger.info("[REMATCH] Skipped: autoSendRematch is disabled in config");
     }
 
+    // Always call newGame() - if rematch is accepted, the page navigation will be overridden naturally
     await newGame(page);
 }
 
@@ -377,13 +379,171 @@ async function exposeConfigUpdater(page) {
 }
 
 /**
+ * Handles rematch detection from WebSocket messages
+ */
+function handleRematchDetection(messageData) {
+    const isRematchTaken = messageData.t === 'reload' && messageData.d?.t === 'rematchTaken';
+    if (!isRematchTaken) return;
+
+    rematchAccepted = true;
+    logger.info(`[REMATCH] Rematch accepted! Game ID: ${messageData.d.d}`);
+}
+
+/**
+ * Attempts to detect and set player color from the page
+ */
+async function detectPlayerColor(page, messageData) {
+    const shouldDetectColor = messageData === 0 || messageData.t === WEBSOCKET_MESSAGE_TYPES.CROWD;
+    if (!shouldDetectColor) return;
+
+    const colorCode = await getPlayerColor(page);
+    if (colorCode) {
+        gameState.setPlayerColor(colorCode === "w");
+    }
+}
+
+/**
+ * Handles first move as white if conditions are met
+ * @returns {boolean} True if first move was handled
+ */
+async function handleFirstMoveAsWhite(page, isAutomoveEnabled) {
+    const shouldMakeFirstMove = gameState.playerColorIsWhite
+        && gameState.moveCounter === 0
+        && !gameState.madeFirstMove
+        && isAutomoveEnabled;
+
+    if (!shouldMakeFirstMove) return false;
+
+    const config = loadConfig();
+    const openingMove = await getBadOpeningMove(gameState.moveCounter) || config.defaultWhiteOpeningMove;
+
+    await sendMove(page, openingMove, 0, gameState.playerColorIsWhite);
+    gameState.markFirstMoveMade();
+    logger.info("Making first move as white...");
+    return true;
+}
+
+/**
+ * Processes a move message and handles bot's turn
+ */
+async function processMoveMessage(page, messageData) {
+    // Increment move counter
+    if (messageData.d?.uci) {
+        gameState.incrementMoveCounter();
+        logger.info("moveCounter " + gameState.moveCounter);
+    }
+
+    // Check if it's bot's turn
+    if (!gameState.isBotsTurn(messageData.v)) {
+        await clearPreviousArrows(page);
+        return;
+    }
+
+    // Assemble FEN notation
+    const isWhitesTurn = messageData.v % 2 === 0;
+    const fen = messageData.d.fen + (isWhitesTurn ? " w" : " b");
+
+    // Fetch UI settings in parallel
+    const [
+        isAutomoveEnabled,
+        isBadOpeningEnabled,
+        isShowArrowEnabled,
+        isAdjustSpeedEnabled,
+        isGaslightingEnabled
+    ] = await Promise.all([
+        fetchPageVariable(page, "automoveEnabled"),
+        fetchPageVariable(page, "badOpeningEnabled"),
+        fetchPageVariable(page, "showArrowsEnabled"),
+        fetchPageVariable(page, "adjustSpeedEnabled"),
+        fetchPageVariable(page, "gaslightingEnabled")
+    ]);
+
+    // Get time remaining
+    const botColor = gameState.playerColorIsWhite ? COLORS.WHITE : COLORS.BLACK;
+    const timeLeftSeconds = messageData.d.clock?.[botColor];
+
+    // Capture initial game time on first move
+    if (gameState.initialGameTime === null && timeLeftSeconds) {
+        gameState.setInitialGameTime(timeLeftSeconds);
+        logger.info(`Initial game time captured: ${timeLeftSeconds} seconds`);
+    }
+
+    // Adjust movetime based on time remaining
+    await processMovetimeSettings(page, timeLeftSeconds, isAdjustSpeedEnabled, isGaslightingEnabled);
+
+    // Try bad opening move (Bongcloud)
+    const badOpeningMoveHandled = await tryBadOpeningMove(page, fen, isBadOpeningEnabled);
+    if (badOpeningMoveHandled) return;
+
+    // Calculate best move
+    const currentMovetime = await fetchPageVariable(page, "movetime");
+    const moveInfo = await calculateNextMove(fen, currentMovetime, isGaslightingEnabled, page, timeLeftSeconds);
+
+    logger.info("move: " + moveInfo.move);
+    logger.info(`automoveEnabled: ${isAutomoveEnabled}`);
+
+    // Mark eval bar as initialized
+    if (!gameState.evalBarAdded) {
+        gameState.markEvalBarAdded();
+    }
+
+    // Send move if automove is enabled
+    if (isAutomoveEnabled) {
+        await sendMove(page, moveInfo.move, moveInfo.score, gameState.playerColorIsWhite);
+        logger.info(`Move sent: ${moveInfo.move}`);
+    } else {
+        logger.info("Automove is disabled, move not sent");
+    }
+
+    // Show move arrow on board
+    if (isShowArrowEnabled) {
+        await clearPreviousArrows(page);
+        await injectArrowMarkerDef(page);
+        await showArrow(page, moveInfo.move, gameState.playerColorIsWhite);
+    }
+
+    // Update evaluation bar
+    await updateScore(page, moveInfo.score, gameState.playerColorIsWhite, moveInfo.scoreunit);
+}
+
+/**
  * Defines the main WebSocket message handler that processes game events and makes moves.
  * @param {Page} page - Puppeteer page instance
  */
 async function definePageMessageHandler(page) {
+    // Handler for outgoing WebSocket messages
+    await page.exposeFunction('handleWebSocketOutgoing', async (message) => {
+        try {
+            const messageData = JSON.parse(message);
+            logger.debug("Websocket Traffic (OUT): " + JSON.stringify(messageData));
+        } catch (e) {
+            // Some messages might not be JSON (like numbers)
+            logger.debug("Websocket Traffic (OUT): " + message);
+        }
+    });
+
+    // Handler for incoming WebSocket messages
     await page.exposeFunction('handleWebSocketMessage', async (message) => {
         const messageData = JSON.parse(message);
-        logger.debug("Websocket Traffic: " + JSON.stringify(messageData));
+        logger.debug("Websocket Traffic (IN): " + JSON.stringify(messageData));
+
+        // Detect rematch acceptance
+        handleRematchDetection(messageData);
+
+        // Detect opponent left - claim victory by forcing their resignation
+        if (messageData.t === 'gone' && messageData.d === true) {
+            logger.info('[OPPONENT LEFT] Opponent has left. Claiming victory...');
+            await page.evaluate(() => {
+                if (window.activeWebSocket) {
+                    const payload = JSON.stringify({ t: 'resign-force' });
+                    window.activeWebSocket.send(payload);
+                    if (typeof window.nodeLog === 'function') {
+                        window.nodeLog('info', 'Claimed victory - opponent left');
+                    }
+                }
+            });
+            return;
+        }
 
         // Handle game end
         if (messageData.t === WEBSOCKET_MESSAGE_TYPES.END_DATA) {
@@ -391,102 +551,19 @@ async function definePageMessageHandler(page) {
             return;
         }
 
-        // Get player color
-        if (messageData === 0 || messageData.t === WEBSOCKET_MESSAGE_TYPES.CROWD) {
-            const tempIsWhite = await getPlayerColor(page);
-            if (tempIsWhite) {
-                gameState.setPlayerColor(tempIsWhite === "w");
-            }
-        }
+        // Detect player color
+        await detectPlayerColor(page, messageData);
 
         // Handle first move as white
-        const automoveEnabled = await fetchPageVariable(page, "automoveEnabled");
-        if (gameState.playerColorIsWhite && gameState.moveCounter === 0 && !gameState.madeFirstMove && automoveEnabled) {
-            const config = loadConfig();
-            let move = await getBadOpeningMove(gameState.moveCounter);
-            if (!move) {
-                move = config.defaultWhiteOpeningMove;
-            }
-            await sendMove(page, move, 0, gameState.playerColorIsWhite);
-            gameState.markFirstMoveMade();
-            logger.info("Making first move as white...");
-            return;
-        }
+        const isAutomoveEnabled = await fetchPageVariable(page, "automoveEnabled");
+        const firstMoveHandled = await handleFirstMoveAsWhite(page, isAutomoveEnabled);
+        if (firstMoveHandled) return;
 
-        // Only react to move messages
-        if (messageData.t !== WEBSOCKET_MESSAGE_TYPES.MOVE) {
-            return;
-        }
+        // Only process move messages from this point
+        if (messageData.t !== WEBSOCKET_MESSAGE_TYPES.MOVE) return;
 
-        // Increment move counter
-        if (messageData.d?.uci) {
-            gameState.incrementMoveCounter();
-            logger.info("moveCounter " + gameState.moveCounter);
-        }
-
-        // Check if it's bot's turn
-        if (!gameState.isBotsTurn(messageData.v)) {
-            await clearPreviousArrows(page);
-            return;
-        }
-
-        // Assemble FEN
-        const isWhitesTurn = messageData.v % 2 === 0;
-        const fen = messageData.d.fen + (isWhitesTurn ? " w" : " b");
-
-        // Fetch UI settings
-        const badOpeningEnabled = await fetchPageVariable(page, "badOpeningEnabled");
-        const showArrowEnabled = await fetchPageVariable(page, "showArrowsEnabled");
-        const adjustSpeedEnabled = await fetchPageVariable(page, "adjustSpeedEnabled");
-        const gaslightingEnabled = await fetchPageVariable(page, "gaslightingEnabled");
-
-        // Get time left
-        const color = gameState.playerColorIsWhite ? COLORS.WHITE : COLORS.BLACK;
-        const timeLeft = messageData.d.clock?.[color];
-
-        // Capture initial game time
-        if (gameState.initialGameTime === null && timeLeft) {
-            gameState.setInitialGameTime(timeLeft);
-            logger.info(`Initial game time captured: ${timeLeft} seconds`);
-        }
-
-        // Process movetime settings
-        await processMovetimeSettings(page, timeLeft, adjustSpeedEnabled, gaslightingEnabled);
-
-        // Try bad opening move
-        if (await tryBadOpeningMove(page, fen, badOpeningEnabled)) {
-            return;
-        }
-
-        // Calculate move
-        const moveTime = await fetchPageVariable(page, "movetime");
-        const moveInfo = await calculateNextMove(fen, moveTime, gaslightingEnabled, page, timeLeft);
-
-        logger.info("move: " + moveInfo.move);
-        logger.info(`automoveEnabled: ${automoveEnabled}`);
-
-        // Mark eval bar as added
-        if (!gameState.evalBarAdded) {
-            gameState.markEvalBarAdded();
-        }
-
-        // Send move if automove enabled
-        if (automoveEnabled) {
-            await sendMove(page, moveInfo.move, moveInfo.score, gameState.playerColorIsWhite);
-            logger.info(`Move sent: ${moveInfo.move}`);
-        } else {
-            logger.info("Automove is disabled, move not sent");
-        }
-
-        // Show arrow if enabled
-        if (showArrowEnabled) {
-            await clearPreviousArrows(page);
-            await injectArrowMarkerDef(page);
-            await showArrow(page, moveInfo.move, gameState.playerColorIsWhite);
-        }
-
-        // Update score display
-        await updateScore(page, moveInfo.score, gameState.playerColorIsWhite, moveInfo.scoreunit);
+        // Process move and make bot's move
+        await processMoveMessage(page, messageData);
     });
 }
 
@@ -507,9 +584,20 @@ async function newGame(page) {
     const newPage = "https://lichess.org/?hook_like=" + page.url().split("lichess.org/")[1];
     gameState.reset();
 
+    // Reset rematch flag at the start
+    rematchAccepted = false;
+
     const delay = config.autoStartDelay || 5000;
     logger.info(`Starting new game in ${delay}ms...`);
     await new Promise(r => setTimeout(r, delay));
+
+    // Check if rematch was accepted during the delay
+    if (rematchAccepted) {
+        logger.info('[AUTO-QUEUE] Rematch accepted during delay. Skipping auto-queue.');
+        return;
+    }
+
+    logger.info('[AUTO-QUEUE] No rematch detected. Queueing for new game...');
     page.goto(newPage);
 }
 

@@ -12,9 +12,13 @@ async function sendWebSocketMessage(page, message) {
     await page.evaluate((msg) => {
         if (window.activeWebSocket) {
             window.activeWebSocket.send(msg);
-            console.log("Move sent!");
+            if (typeof window.nodeLog === 'function') {
+                window.nodeLog('debug', 'Move sent!');
+            }
         } else {
-            console.error("No active WebSocket connection to send the message.");
+            if (typeof window.nodeLog === 'function') {
+                window.nodeLog('error', 'No active WebSocket connection.');
+            }
         }
     }, message);
 }
@@ -29,13 +33,19 @@ async function getPlayerColor(page) {
             const messageText = messageDiv.textContent || messageDiv.innerText;
 
             if (messageText.includes("white")) {
-                console.log("You play the white pieces")
+                if (typeof window.nodeLog === 'function') {
+                    window.nodeLog('info', 'You play the white pieces');
+                }
                 return "w";
             } else if (messageText.includes("black")) {
-                console.log("You play the black pieces")
+                if (typeof window.nodeLog === 'function') {
+                    window.nodeLog('info', 'You play the black pieces');
+                }
                 return "b";
             } else {
-                console.log("Error: Piece color not found.");
+                if (typeof window.nodeLog === 'function') {
+                    window.nodeLog('error', 'Error: Piece color not found.');
+                }
                 return null;
             }
         }
@@ -76,8 +86,7 @@ async function checkForThankYouButton(page) {
 async function sendRematchOffer(page) {
     await page.evaluate(() => {
         if (window.activeWebSocket) {
-            // Send rematch offer - Lichess expects just the type
-            const payload = JSON.stringify({ t: 'rematch' });
+            const payload = JSON.stringify({ t: 'rematch-yes' });
             window.activeWebSocket.send(payload);
             window.nodeLog?.('info', 'Rematch offer sent via WebSocket: ' + payload);
         } else {
@@ -98,7 +107,9 @@ async function setMovetime(page, time) {
         const seconds = (movetime / 1000).toFixed(1);
         document.getElementById("movetimeSlider").value = seconds;
         document.getElementById("movetimeSliderText").innerText = seconds + 's';
-        console.log(`Movetime set to ${movetime}ms (${seconds}s). Adjusting speed...`);
+        if (typeof window.nodeLog === 'function') {
+            window.nodeLog('debug', `Movetime set to ${movetime}ms (${seconds}s). Adjusting speed...`);
+        }
     }, time);
 }
 
@@ -133,9 +144,13 @@ async function updateScore(page, score, playerColorIsWhite, scoreUnit = SCORE_UN
 
             slider.value = sliderValue;
             window.evalLabel.textContent = displayText;
-            console.log(`Eval bar updated to: ${displayText} (unit: ${scoreUnit})`);
+            if (typeof window.nodeLog === 'function') {
+                window.nodeLog('debug', `Eval bar updated to: ${displayText} (unit: ${scoreUnit})`);
+            }
         } else {
-            console.warn('No evalSlider found on window object.');
+            if (typeof window.nodeLog === 'function') {
+                window.nodeLog('warn', 'No evalSlider found on window object.');
+            }
         }
     }, score, playerColorIsWhite, scoreUnit, SCORE_UNIT, EVAL_SLIDER);
 }

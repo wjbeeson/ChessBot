@@ -69,11 +69,11 @@ async function injectControls(page) {
             // ============================================================
 
             /**
-             * Creates a checkbox + label pair with localStorage persistence and tooltip.
+             * Creates a checkbox + label pair with config.json as source of truth and tooltip.
              * Automatically syncs with config.json using the configKey parameter.
              */
             function createLabeledCheckbox({
-                id, labelText, storageKey, windowProp, onToggle, defaultValue = true, tooltip = '', configKey = null
+                id, labelText, windowProp, onToggle, defaultValue = true, tooltip = '', configKey = null
             }) {
                 const container = document.createElement('div');
                 container.style.display = 'flex';
@@ -81,28 +81,28 @@ async function injectControls(page) {
                 container.style.marginRight = UI_SIZES.PADDING_MEDIUM;
                 container.style.position = 'relative';
 
-                const storedValue = localStorage.getItem(storageKey);
-                let isChecked = storedValue === null ? defaultValue : (storedValue !== 'false');
-
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.id = id;
                 checkbox.style.transform = `scale(${UI_SIZES.CHECKBOX_SCALE})`;
                 checkbox.style.marginBottom = UI_SIZES.PADDING_SMALL;
-                checkbox.checked = isChecked;
+                checkbox.checked = defaultValue;
 
-                // If this checkbox syncs with config file, load initial value from config
+                // Load initial value from config file if configKey is provided
                 if (configKey && typeof window.getConfigValue === 'function') {
                     window.getConfigValue(configKey).then(configValue => {
                         if (configValue !== undefined) {
                             checkbox.checked = configValue;
                             window[windowProp] = configValue;
-                            localStorage.setItem(storageKey, configValue);
+                        } else {
+                            // Config doesn't have this value, use default
+                            checkbox.checked = defaultValue;
+                            window[windowProp] = defaultValue;
                         }
                     });
+                } else {
+                    window[windowProp] = defaultValue;
                 }
-
-                window[windowProp] = isChecked;
 
                 const label = document.createElement('label');
                 label.htmlFor = id;
@@ -143,9 +143,8 @@ async function injectControls(page) {
                 checkbox.addEventListener('change', async () => {
                     const newVal = checkbox.checked;
                     window[windowProp] = newVal;
-                    localStorage.setItem(storageKey, newVal);
 
-                    // Automatically sync with config.json if configKey is provided
+                    // Sync with config.json if configKey is provided
                     if (configKey && typeof window.updateConfigValue === 'function') {
                         try {
                             await window.updateConfigValue(configKey, newVal);
@@ -169,9 +168,9 @@ async function injectControls(page) {
             }
 
             /**
-             * Creates a collapsible section with header and content
+             * Creates a collapsible section with header and content (state in memory only)
              */
-            function createCollapsibleSection(title, storageKey) {
+            function createCollapsibleSection(title, defaultCollapsed = false) {
                 const header = document.createElement('div');
                 Object.assign(header.style, {
                     display: 'flex',
@@ -190,7 +189,7 @@ async function injectControls(page) {
                 });
 
                 const collapseButton = document.createElement('button');
-                collapseButton.innerText = '−';
+                collapseButton.innerText = defaultCollapsed ? '+' : '−';
                 Object.assign(collapseButton.style, {
                     background: 'none',
                     border: 'none',
@@ -207,22 +206,15 @@ async function injectControls(page) {
 
                 const contentWrapper = document.createElement('div');
                 Object.assign(contentWrapper.style, {
-                    display: 'flex',
+                    display: defaultCollapsed ? 'none' : 'flex',
                     flexDirection: 'column',
                     transition: 'all 0.3s ease'
                 });
-
-                const collapsed = localStorage.getItem(storageKey) === 'true';
-                if (collapsed) {
-                    contentWrapper.style.display = 'none';
-                    collapseButton.innerText = '+';
-                }
 
                 header.addEventListener('click', () => {
                     const isHidden = contentWrapper.style.display === 'none';
                     contentWrapper.style.display = isHidden ? 'flex' : 'none';
                     collapseButton.innerText = isHidden ? '−' : '+';
-                    localStorage.setItem(storageKey, !isHidden);
                 });
 
                 return { header, contentWrapper };
@@ -467,7 +459,8 @@ async function injectControls(page) {
                     labelText: 'Auto-Move',
                     storageKey: KEYS.AUTOMOVE_ENABLED,
                     windowProp: 'automoveEnabled',
-                    onToggle: (val) => console.log(`Automoving is now ${val ? 'enabled' : 'disabled'}.`),
+                    configKey: 'automoveEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `Automoving is now ${val ? 'enabled' : 'disabled'}.`),
                     tooltip: 'Auto-play moves. Sit back and watch.'
                 },
                 {
@@ -475,6 +468,7 @@ async function injectControls(page) {
                     labelText: 'Auto-Queue',
                     storageKey: KEYS.AUTO_START_NEW_GAME_ENABLED,
                     windowProp: 'autoStartNewGameEnabled',
+                    configKey: 'autoStartNewGame',
                     onToggle: (val) => window.nodeLog?.('info', `autoStartNewGameEnabled is now ${val ? 'enabled' : 'disabled'}.`),
                     defaultValue: true,
                     tooltip: 'Start next game automatically. Nonstop chaos.'
@@ -494,7 +488,8 @@ async function injectControls(page) {
                     labelText: 'Bongcloud Opening',
                     storageKey: KEYS.BAD_OPENING_ENABLED,
                     windowProp: 'badOpeningEnabled',
-                    onToggle: (val) => console.log(`DoBadOpenings is now ${val ? 'enabled' : 'disabled'}.`),
+                    configKey: 'badOpeningEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `DoBadOpenings is now ${val ? 'enabled' : 'disabled'}.`),
                     defaultValue: false,
                     tooltip: 'Play Bongcloud (Ke2/Ke7) for maximum disrespect'
                 },
@@ -503,8 +498,9 @@ async function injectControls(page) {
                     labelText: 'Dynamic Speed',
                     storageKey: KEYS.ADJUST_SPEED_ENABLED,
                     windowProp: 'adjustSpeedEnabled',
+                    configKey: 'adjustSpeedEnabled',
                     onToggle: (val) => {
-                        console.log(`adjustSpeedEnabled is now ${val ? 'enabled' : 'disabled'}.`);
+                        window.nodeLog?.('info', `adjustSpeedEnabled is now ${val ? 'enabled' : 'disabled'}.`);
                         const movetimeSlider = document.getElementById('movetimeSlider');
                         const movetimeIndicator = document.getElementById('movetimeIndicator');
                         if (val) {
@@ -527,7 +523,7 @@ async function injectControls(page) {
                     storageKey: KEYS.CRITICAL_TIME_ENABLED,
                     windowProp: 'criticalTimeEnabled',
                     configKey: 'criticalTimeEnabled',
-                    onToggle: (val) => console.log(`criticalTimeEnabled is now ${val ? 'enabled' : 'disabled'}.`),
+                    onToggle: (val) => window.nodeLog?.('info', `criticalTimeEnabled is now ${val ? 'enabled' : 'disabled'}.`),
                     defaultValue: true,
                     tooltip: 'Ultra-fast moves when low on time (overrides everything)'
                 },
@@ -536,7 +532,8 @@ async function injectControls(page) {
                     labelText: 'Gaslight Mode',
                     storageKey: KEYS.GASLIGHTING_ENABLED,
                     windowProp: 'gaslightingEnabled',
-                    onToggle: (val) => console.log(`Gaslighting is now ${val ? 'enabled' : 'disabled'}.`),
+                    configKey: 'gaslightingEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `Gaslighting is now ${val ? 'enabled' : 'disabled'}.`),
                     tooltip: 'Play bad moves, let them think they\'re winning, then crush them'
                 },
                 {
@@ -545,7 +542,7 @@ async function injectControls(page) {
                     storageKey: KEYS.PRESS_THANK_YOU_ENABLED,
                     windowProp: 'pressThankYouEnabled',
                     configKey: 'pressThankYou',
-                    onToggle: (val) => console.log(`pressThankYouEnabled is now ${val ? 'enabled' : 'disabled'}.`),
+                    onToggle: (val) => window.nodeLog?.('info', `pressThankYouEnabled is now ${val ? 'enabled' : 'disabled'}.`),
                     defaultValue: true,
                     tooltip: 'Click "Thank You" after winning. Rub it in.'
                 },
@@ -554,7 +551,8 @@ async function injectControls(page) {
                     labelText: 'Show Arrows',
                     storageKey: KEYS.SHOW_ARROWS_ENABLED,
                     windowProp: 'showArrowsEnabled',
-                    onToggle: (val) => console.log(`showArrowsEnabled is now ${val ? 'enabled' : 'disabled'}.`),
+                    configKey: 'showArrowsEnabled',
+                    onToggle: (val) => window.nodeLog?.('info', `showArrowsEnabled is now ${val ? 'enabled' : 'disabled'}.`),
                     defaultValue: false,
                     tooltip: 'Show engine move arrows on board'
                 }
