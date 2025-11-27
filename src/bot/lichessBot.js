@@ -117,14 +117,61 @@ async function getDynamicMovetime(timeLeft, initialTime) {
 // ============================================================================
 
 /**
- * Activates "smack mode" by changing the background color.
+ * Activates "smack mode" by lerping the background color to red.
  * @param {Page} page - Puppeteer page instance
  */
 async function activateSmackMode(page) {
     const config = loadConfig();
     gameState.activateSmackMode();
-    await page.evaluate((bgColor) => {
-        document.documentElement.style.setProperty('--c-bg-page', bgColor);
+    await page.evaluate((targetColor) => {
+        // Get current background color
+        const currentColor = getComputedStyle(document.documentElement).getPropertyValue('--c-bg-page').trim();
+
+        // Parse hex colors to RGB
+        const hexToRgb = (hex) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        };
+
+        const rgbToHex = (r, g, b) => {
+            return '#' + [r, g, b].map(x => {
+                const hex = Math.round(x).toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+        };
+
+        const start = hexToRgb(currentColor);
+        const end = hexToRgb(targetColor);
+
+        if (!start || !end) return;
+
+        // Lerp over 2 seconds
+        const duration = 2000;
+        const startTime = Date.now();
+
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Ease out cubic
+            const eased = 1 - Math.pow(1 - progress, 3);
+
+            const r = start.r + (end.r - start.r) * eased;
+            const g = start.g + (end.g - start.g) * eased;
+            const b = start.b + (end.b - start.b) * eased;
+
+            document.documentElement.style.setProperty('--c-bg-page', rgbToHex(r, g, b));
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            }
+        };
+
+        animate();
     }, config.smackModeBackgroundColor);
 }
 

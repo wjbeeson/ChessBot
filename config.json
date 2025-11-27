@@ -30,11 +30,11 @@
       "variance": 50
     },
     "20": {
-      "movetime": 2500,
+      "movetime": 1500,
       "variance": 300
     },
     "40": {
-      "movetime": 4500,
+      "movetime": 2000,
       "variance": 500
     },
     "60": {
@@ -56,7 +56,7 @@
   "pressThankYou": true,
   "badOpeningEnabled": false,
   "adjustSpeedEnabled": true,
-  "gaslightingEnabled": false,
+  "gaslightingEnabled": true,
   "showArrowsEnabled": false,
   "spamMoretimeEnabled": true,
   "headlessMode": false
