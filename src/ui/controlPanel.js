@@ -682,7 +682,7 @@ async function injectControls(page) {
                     windowProp: 'gaslightingEnabled',
                     configKey: 'gaslightingEnabled',
                     onToggle: (val) => window.nodeLog?.('info', `Gaslighting is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Play bad moves, let them think they\'re winning, then crush them'
+                    tooltip: 'Play bad moves, let them think they\'re winning, then crush them.'
                 },
                 {
                     id: 'spamMoretimeCheckbox',
@@ -690,7 +690,7 @@ async function injectControls(page) {
                     windowProp: 'spamMoretimeEnabled',
                     configKey: 'spamMoretimeEnabled',
                     onToggle: (val) => window.nodeLog?.('info', `spamMoretimeEnabled is now ${val ? 'enabled' : 'disabled'}.`),
-                    tooltip: 'Spam moretime requests when bot has mate'
+                    tooltip: 'Give your opponent some extra time to appreciate the moment before mating them.'
                 },
                 {
                     id: 'pressThankYouCheckbox',
