@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Configuration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #4fc3f7;
+            font-size: 32px;
+        }
+        .section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .section h2 {
+            color: #81c784;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #b0bec5;
+            font-size: 14px;
+        }
+        input[type="number"], input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+        }
+        input[type="number"]:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #4fc3f7;
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .time-thresholds {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+            padding: 10px 0;
+        }
+        .threshold-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: nowrap;
+            justify-content: space-between;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.2s ease;
+            cursor: move;
+            position: relative;
+        }
+        .threshold-group .threshold-cluster {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .threshold-group:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+        .threshold-group.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+        .threshold-group .drag-handle {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 16px;
+            cursor: grab;
+            padding-right: 5px;
+        }
+        .threshold-group .drag-handle:hover {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        .threshold-label {
+            color: #b0bec5;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-right: 3px;
+            opacity: 0.7;
+        }
+        .threshold-group button {
+            flex: 0 0 32px !important;
+            width: 32px !important;
+            min-width: 32px !important;
+            max-width: 32px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            height: 32px;
+            transition: all 0.2s ease;
+        }
+        .threshold-group button:hover {
+            background: #e53935 !important;
+            transform: scale(1.05);
+        }
+        .threshold-group span {
+            color: #81c784;
+            font-weight: 500;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+        .threshold-group input {
+            transition: all 0.2s ease;
+        }
+        .threshold-group input:focus {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.2);
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .save-btn {
+            background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+            color: white;
+        }
+        .save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+        .reset-btn {
+            background: linear-gradient(135deg, #f44336 0%, #da190b 100%);
+            color: white;
+        }
+        .reset-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+        }
+        .info {
+            background: rgba(79, 195, 247, 0.1);
+            border-left: 4px solid #4fc3f7;
+            padding: 10px 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #b0bec5;
+        }
+        .success-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4caf50;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="success-message" id="successMessage">Configuration saved successfully!</div>
+
+    <div class="container">
+        <h1>🤖 Chess Bot Configuration</h1>
+
+        <div class="info">
+            Note: Eval values are in pawns (e.g., 1.0 = 1 pawn advantage). Changes take effect immediately - no restart required!
+        </div>
+
+        <form id="configForm">
+            <div class="section">
+                <h2>⚙️ General Bot Settings</h2>
+                <p style="color: #b0bec5; font-size: 13px; margin-bottom: 15px;">
+                    Fundamental settings that control basic bot behavior.
+                </p>
+                <div class="form-group">
+                    <label for="defaultMovetime">Default Move Time</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Fallback move time when Dynamic Speed is disabled or no time data is available yet (in seconds).</p>
+                    <input type="number" id="defaultMovetime" name="defaultMovetime" min="0.1" max="10" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="minimumMovetime">Minimum Move Time</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Absolute minimum thinking time to prevent instant moves (in seconds).</p>
+                    <input type="number" id="minimumMovetime" name="minimumMovetime" min="0.01" max="1" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label for="defaultWhiteOpeningMove">Default White Opening Move</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Fallback first move as white if Bongcloud is disabled and no opening move is found (UCI format, e.g., d2d4).</p>
+                    <input type="text" id="defaultWhiteOpeningMove" name="defaultWhiteOpeningMove" placeholder="e.g., d2d4">
+                </div>
+                <div class="form-group">
+                    <label for="autoStartDelay">Auto-Start New Game Delay</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">How long to wait after a game ends before starting a new one (in seconds). Toggle is controlled in the Bot Controls panel.</p>
+                    <input type="number" id="autoStartDelay" name="autoStartDelay" min="0" max="60" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label for="lichessBaseUrl">Lichess Base URL</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Base URL for the Lichess website. Only change if using a different Lichess instance.</p>
+                    <input type="text" id="lichessBaseUrl" name="lichessBaseUrl" placeholder="https://lichess.org/">
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>⏱️ Time Thresholds (Dynamic Speed)</h2>
+                <p style="color: #b0bec5; font-size: 13px; margin-bottom: 15px;">
+                    Configure movetime based on percentage of time remaining. Works for any time control!<br>
+                    Example: "≥80%: 1500ms" means when you have 80% or more of your initial time, use 1500ms per move.
+                </p>
+                <div class="time-thresholds" id="timeThresholds"></div>
+                <button type="button" onclick="addThreshold()" style="margin-top: 15px; padding: 8px 15px; background: #4fc3f7; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                    ➕ Add Threshold
+                </button>
+            </div>
+
+            <div class="section">
+                <h2>⚠️ Emergency Mode (Critical Time)</h2>
+                <p style="color: #ff9800; font-size: 13px; margin-bottom: 15px; font-weight: 500;">
+                    ⚠️ OVERRIDES ALL OTHER SETTINGS - Activates emergency fast-play mode when time is critically low to prevent timeouts.
+                </p>
+                <div class="form-group">
+                    <label for="criticalTimeEnabled">Enable Emergency Mode</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Toggle to enable/disable emergency mode entirely.</p>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="criticalTimeEnabled" name="criticalTimeEnabled">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="criticalTimeThreshold">Emergency Time Threshold</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">When the clock drops below this (in seconds), switch to ultra-fast moves to avoid timeout.</p>
+                    <input type="number" id="criticalTimeThreshold" name="criticalTimeThreshold" min="1" max="60" step="1">
+                </div>
+                <div class="form-group">
+                    <label for="criticalTimeMovetime">Emergency Move Time</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Move time to use when in emergency mode (in seconds).</p>
+                    <input type="number" id="criticalTimeMovetime" name="criticalTimeMovetime" min="0.01" max="1" step="0.01">
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>🎯 Gaslighting Mode</h2>
+                <p style="color: #b0bec5; font-size: 13px; margin-bottom: 15px;">
+                    Play intentionally suboptimal moves to appear more human and avoid detection.
+                </p>
+                <div class="form-group">
+                    <label for="gaslightLines">Number of Lines</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Engine analyzes multiple lines to find a move that's worse than the best. More lines = slower search & worse moves.</p>
+                    <input type="number" id="gaslightLines" name="gaslightLines" min="1" max="100">
+                </div>
+                <div class="form-group">
+                    <label for="maxScoreLoss">Max Eval Loss</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Maximum eval loss allowed when gaslighting (in pawns). Prevents the bot from instantly sacrificing their queen and instead plays moves that are this much worse than the best move.</p>
+                    <input type="number" id="maxScoreLoss" name="maxScoreLoss" min="0" max="10" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="scoreFloor">Eval Floor</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Never pick suboptimal moves when the position eval is below this (in pawns). Prevents losing the game in one move and just gives the opponent the illusion of winning.</p>
+                    <input type="number" id="scoreFloor" name="scoreFloor" min="-50" max="0" step="0.1">
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>💥 Smack Mode Settings</h2>
+                <p style="color: #b0bec5; font-size: 13px; margin-bottom: 15px;">
+                    Smack mode plays best moves super fast to finish games quickly when criteria are met.
+                </p>
+                <div class="form-group">
+                    <label for="smackModeMovetime">Move Time</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">How fast to play moves in smack mode (in seconds).</p>
+                    <input type="number" id="smackModeMovetime" name="smackModeMovetime" min="0.01" max="10" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label for="smackModeVariance">Move Time Variance</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Random time variance to add/subtract (in seconds). Makes move timing less predictable.</p>
+                    <input type="number" id="smackModeVariance" name="smackModeVariance" min="0" max="5" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label for="smackModeMinScore">Min Eval to Activate</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Activate if the position eval drops below this (in pawns). For losing positions.</p>
+                    <input type="number" id="smackModeMinScore" name="smackModeMinScore" min="-50" max="0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="smackModeMaxScore">Max Eval to Activate</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Instantly activate if the position eval exceeds this (in pawns). For winning positions.</p>
+                    <input type="number" id="smackModeMaxScore" name="smackModeMaxScore" min="0" max="50" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="smackModeMinMoves">Min Moves Before Activation</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Don't activate smack mode until this many moves have been played.</p>
+                    <input type="number" id="smackModeMinMoves" name="smackModeMinMoves" min="0" max="100">
+                </div>
+                <div class="form-group">
+                    <label for="smackModeMaxMoves">Max Moves Before Force Activation</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Force activation after this many moves to speed up long games.</p>
+                    <input type="number" id="smackModeMaxMoves" name="smackModeMaxMoves" min="0" max="200">
+                </div>
+                <div class="form-group">
+                    <label for="smackModeMinTime">Min Time Before Force Activation</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Force activation if the game clock is below this (in seconds).</p>
+                    <input type="number" id="smackModeMinTime" name="smackModeMinTime" min="0" max="300">
+                </div>
+                <div class="form-group">
+                    <label for="smackModeBackgroundColor">Background Color</label>
+                    <p style="color: #90a4ae; font-size: 12px; margin: 5px 0;">Background color when smack mode activates (visual indicator).</p>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="color" id="smackModeColorPicker" style="width: 60px; height: 40px; cursor: pointer; border: 1px solid #555; border-radius: 6px;">
+                        <input type="text" id="smackModeBackgroundColor" name="smackModeBackgroundColor" placeholder="#8B1A1A" style="flex: 1;" maxlength="7" pattern="^#[0-9A-Fa-f]{6}$">
+                        <div id="colorPreview" style="width: 100px; height: 40px; border: 2px solid #555; border-radius: 6px; background: #8B1A1A;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button type="submit" class="save-btn">💾 Save Configuration</button>
+                <button type="button" class="reset-btn" onclick="loadConfig()">🔄 Reset to Current</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        async function loadConfig() {
+            const response = await fetch('/get-config');
+            const config = await response.json();
+
+            document.getElementById('gaslightLines').value = config.gaslightLines;
+            document.getElementById('maxScoreLoss').value = (config.maxScoreLoss / 100).toFixed(1);
+            document.getElementById('scoreFloor').value = (config.scoreFloor / 100).toFixed(1);
+            document.getElementById('defaultMovetime').value = (config.defaultMovetime / 1000).toFixed(1);
+            document.getElementById('minimumMovetime').value = (config.minimumMovetime / 1000).toFixed(2);
+            document.getElementById('defaultWhiteOpeningMove').value = config.defaultWhiteOpeningMove;
+            document.getElementById('criticalTimeEnabled').checked = config.criticalTimeEnabled !== false;
+            document.getElementById('criticalTimeThreshold').value = config.criticalTimeThreshold;
+            document.getElementById('criticalTimeMovetime').value = (config.criticalTimeMovetime / 1000).toFixed(2);
+            document.getElementById('autoStartDelay').value = (config.autoStartDelay || 5000) / 1000;
+            document.getElementById('lichessBaseUrl').value = config.lichessBaseUrl;
+            document.getElementById('smackModeMovetime').value = (config.smackModeMovetime / 1000).toFixed(2);
+            document.getElementById('smackModeVariance').value = (config.smackModeVariance / 1000).toFixed(2);
+            document.getElementById('smackModeMinScore').value = (config.smackModeMinScore / 100).toFixed(1);
+            document.getElementById('smackModeMaxScore').value = (config.smackModeMaxScore / 100).toFixed(1);
+            document.getElementById('smackModeMinMoves').value = config.smackModeMinMoves;
+            document.getElementById('smackModeMaxMoves').value = config.smackModeMaxMoves;
+            document.getElementById('smackModeMinTime').value = config.smackModeMinTime;
+            document.getElementById('smackModeBackgroundColor').value = config.smackModeBackgroundColor;
+
+            renderThresholds(config.timeThresholds);
+        }
+
+        function renderThresholds(thresholds) {
+            const thresholdsContainer = document.getElementById('timeThresholds');
+            thresholdsContainer.innerHTML = '';
+
+            // Sort thresholds by percentage (descending)
+            const sortedEntries = Object.entries(thresholds).sort((a, b) => b[0] - a[0]);
+
+            for (const [percent, config] of sortedEntries) {
+                const movetime = typeof config === 'object' ? config.movetime : config;
+                const variance = typeof config === 'object' ? config.variance : 0;
+                // Convert ms to seconds for display
+                addThresholdElement(percent, movetime / 1000, variance / 1000);
+            }
+
+            setupDragAndDrop();
+        }
+
+        function setupDragAndDrop() {
+            const container = document.getElementById('timeThresholds');
+            let draggedElement = null;
+
+            container.addEventListener('dragstart', (e) => {
+                if (e.target.classList.contains('threshold-group')) {
+                    draggedElement = e.target;
+                    e.target.classList.add('dragging');
+                }
+            });
+
+            container.addEventListener('dragend', (e) => {
+                if (e.target.classList.contains('threshold-group')) {
+                    e.target.classList.remove('dragging');
+                }
+            });
+
+            container.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(container, e.clientY);
+                if (afterElement == null) {
+                    container.appendChild(draggedElement);
+                } else {
+                    container.insertBefore(draggedElement, afterElement);
+                }
+            });
+        }
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.threshold-group:not(.dragging)')];
+
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function addThresholdElement(percent = '', movetimeSec = 1, varianceSec = 0) {
+            const thresholdsContainer = document.getElementById('timeThresholds');
+            const group = document.createElement('div');
+            group.className = 'threshold-group';
+            group.draggable = true;
+            group.innerHTML = `
+                <div class="threshold-cluster">
+                    <span class="drag-handle">⋮⋮</span>
+                </div>
+                <div class="threshold-cluster">
+                    <span class="threshold-label">When</span>
+                    <span style="color: #81c784; flex-shrink: 0;">≥</span>
+                    <input type="number" class="threshold-percent" value="${percent}" min="0" max="100" step="1" style="width: 60px; padding: 8px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; color: #fff; flex-shrink: 0;">
+                    <span style="color: #81c784; flex-shrink: 0;">%</span>
+                </div>
+                <div class="threshold-cluster">
+                    <span class="threshold-label">Time:</span>
+                    <input type="number" class="threshold-movetime" value="${movetimeSec}" min="0" max="10" step="0.1" style="width: 70px; padding: 8px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; color: #fff; flex-shrink: 0;">
+                    <span style="color: #777; font-size: 12px; flex-shrink: 0;">s</span>
+                </div>
+                <div class="threshold-cluster">
+                    <span class="threshold-label">Variance:</span>
+                    <span style="color: #777; flex-shrink: 0;">±</span>
+                    <input type="number" class="threshold-variance" value="${varianceSec}" min="0" max="5" step="0.01" style="width: 70px; padding: 8px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; color: #fff; flex-shrink: 0;">
+                    <span style="color: #777; font-size: 12px; flex-shrink: 0;">s</span>
+                </div>
+                <div class="threshold-cluster">
+                    <button type="button" onclick="removeThreshold(this)" style="background: #f44336; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; height: 28px; line-height: 1; flex-shrink: 0; width: 32px; text-shadow: 0 0 3px rgba(0,0,0,0.5);">✕</button>
+                </div>
+            `;
+            thresholdsContainer.appendChild(group);
+        }
+
+        function addThreshold() {
+            addThresholdElement('', 1, 0);
+            setupDragAndDrop();
+        }
+
+        function removeThreshold(button) {
+            button.parentElement.remove();
+        }
+
+        document.getElementById('configForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const timeThresholds = {};
+            const thresholdGroups = document.querySelectorAll('.threshold-group');
+
+            thresholdGroups.forEach(group => {
+                const percent = group.querySelector('.threshold-percent').value;
+                const movetimeSec = group.querySelector('.threshold-movetime').value;
+                const varianceSec = group.querySelector('.threshold-variance').value;
+
+                if (percent !== '' && movetimeSec !== '') {
+                    const percentNum = parseInt(percent);
+                    const movetimeNum = Math.round(parseFloat(movetimeSec) * 1000); // Convert s to ms
+                    const varianceNum = Math.round(parseFloat(varianceSec) * 1000) || 0; // Convert s to ms
+
+                    if (percentNum >= 0 && percentNum <= 100 && movetimeNum >= 0) {
+                        timeThresholds[percentNum] = {
+                            movetime: movetimeNum,
+                            variance: varianceNum
+                        };
+                    }
+                }
+            });
+
+            const config = {
+                gaslightLines: parseInt(document.getElementById('gaslightLines').value),
+                maxScoreLoss: Math.round(parseFloat(document.getElementById('maxScoreLoss').value) * 100),
+                scoreFloor: Math.round(parseFloat(document.getElementById('scoreFloor').value) * 100),
+                defaultMovetime: Math.round(parseFloat(document.getElementById('defaultMovetime').value) * 1000),
+                minimumMovetime: Math.round(parseFloat(document.getElementById('minimumMovetime').value) * 1000),
+                defaultWhiteOpeningMove: document.getElementById('defaultWhiteOpeningMove').value,
+                criticalTimeEnabled: document.getElementById('criticalTimeEnabled').checked,
+                criticalTimeThreshold: parseInt(document.getElementById('criticalTimeThreshold').value),
+                criticalTimeMovetime: Math.round(parseFloat(document.getElementById('criticalTimeMovetime').value) * 1000),
+                autoStartDelay: Math.round(parseFloat(document.getElementById('autoStartDelay').value) * 1000),
+                lichessBaseUrl: document.getElementById('lichessBaseUrl').value,
+                smackModeMovetime: Math.round(parseFloat(document.getElementById('smackModeMovetime').value) * 1000),
+                smackModeVariance: Math.round(parseFloat(document.getElementById('smackModeVariance').value) * 1000),
+                smackModeMinScore: Math.round(parseFloat(document.getElementById('smackModeMinScore').value) * 100),
+                smackModeMaxScore: Math.round(parseFloat(document.getElementById('smackModeMaxScore').value) * 100),
+                smackModeMinMoves: parseInt(document.getElementById('smackModeMinMoves').value),
+                smackModeMaxMoves: parseInt(document.getElementById('smackModeMaxMoves').value),
+                smackModeMinTime: parseInt(document.getElementById('smackModeMinTime').value),
+                smackModeBackgroundColor: document.getElementById('smackModeBackgroundColor').value,
+                timeThresholds: timeThresholds
+            };
+
+            const response = await fetch('/update-config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(config)
+            });
+
+            if (response.ok) {
+                const successMsg = document.getElementById('successMessage');
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.display = 'none';
+                }, 3000);
+                // Reload to show sorted thresholds
+                await loadConfig();
+            }
+        });
+
+        // Color picker synchronization
+        const colorPicker = document.getElementById('smackModeColorPicker');
+        const colorInput = document.getElementById('smackModeBackgroundColor');
+        const colorPreview = document.getElementById('colorPreview');
+
+        // Convert HSL to hex (for loading config values)
+        function hslToHex(hsl) {
+            // Parse HSL string like "hsl(354 100% 19%)"
+            const match = hsl.match(/hsl\((\d+)\s+(\d+)%\s+(\d+)%\)/);
+            if (!match) return hsl; // Return original if not HSL format
+
+            const h = parseInt(match[1]) / 360;
+            const s = parseInt(match[2]) / 100;
+            const l = parseInt(match[3]) / 100;
+
+            let r, g, b;
+            if (s === 0) {
+                r = g = b = l;
+            } else {
+                const hue2rgb = (p, q, t) => {
+                    if (t < 0) t += 1;
+                    if (t > 1) t -= 1;
+                    if (t < 1/6) return p + (q - p) * 6 * t;
+                    if (t < 1/2) return q;
+                    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                    return p;
+                };
+                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                const p = 2 * l - q;
+                r = hue2rgb(p, q, h + 1/3);
+                g = hue2rgb(p, q, h);
+                b = hue2rgb(p, q, h - 1/3);
+            }
+
+            const toHex = x => {
+                const hex = Math.round(x * 255).toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            };
+
+            return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+        }
+
+        // Update preview and sync inputs
+        function updateColorPreview(hexColor) {
+            colorPreview.style.background = hexColor;
+        }
+
+        // Color picker change handler
+        colorPicker.addEventListener('input', (e) => {
+            const hex = e.target.value.toUpperCase();
+            colorInput.value = hex;
+            updateColorPreview(hex);
+        });
+
+        // Text input change handler
+        colorInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+            if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                colorPicker.value = value;
+                updateColorPreview(value);
+            }
+        });
+
+        // Initialize color picker on config load
+        const originalLoadConfig = loadConfig;
+        loadConfig = async function() {
+            await originalLoadConfig();
+            const configColor = document.getElementById('smackModeBackgroundColor').value;
+            const hexColor = configColor.startsWith('hsl') ? hslToHex(configColor) : configColor;
+            colorPicker.value = hexColor;
+            colorInput.value = hexColor;
+            updateColorPreview(hexColor);
+        };
+
+        loadConfig();
+    </script>
+</body>
+</html>

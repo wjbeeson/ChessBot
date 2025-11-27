@@ -1,0 +1,54 @@
+{
+  "enginePath": "./stockfish_24101214_x64_avx2.exe",
+  "mateBoost": 10000000,
+  "port": 3001,
+  "gaslightLines": 20,
+  "maxScoreLoss": 200,
+  "scoreFloor": -700,
+  "defaultMovetime": 1500,
+  "minimumMovetime": 100,
+  "defaultWhiteOpeningMove": "d2d4",
+  "criticalTimeEnabled": true,
+  "criticalTimeThreshold": 5,
+  "criticalTimeMovetime": 100,
+  "autoStartDelay": 5000,
+  "autoStartNewGame": true,
+  "autoSendRematch": true,
+  "pressThankYou": true,
+  "headlessMode": false,
+  "lichessBaseUrl": "https://lichess.org/",
+  "smackModeMovetime": 300,
+  "smackModeVariance": 50,
+  "smackModeMinScore": -900,
+  "smackModeMaxScore": 300,
+  "smackModeMinMoves": 20,
+  "smackModeMaxMoves": 40,
+  "smackModeMinTime": 11,
+  "smackModeBackgroundColor": "#61000a",
+  "timeThresholds": {
+    "5": {
+      "movetime": 300,
+      "variance": 50
+    },
+    "20": {
+      "movetime": 2500,
+      "variance": 300
+    },
+    "40": {
+      "movetime": 4500,
+      "variance": 500
+    },
+    "60": {
+      "movetime": 3500,
+      "variance": 400
+    },
+    "80": {
+      "movetime": 1500,
+      "variance": 200
+    },
+    "95": {
+      "movetime": 1000,
+      "variance": 300
+    }
+  }
+}

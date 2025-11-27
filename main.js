@@ -1,13 +1,21 @@
-// main.js
+/**
+ * Main Entry Point
+ * Starts both the Stockfish server and the Lichess bot
+ */
+
 const { fork } = require('child_process');
+const path = require('path');
 
-const server = fork('./chess-bot.js');
-const index = fork('./server.js');
+// Start the Stockfish API server
+const serverProcess = fork(path.join(__dirname, 'src/server/stockfishServer.js'));
 
-server.on('close', (code) => {
-    console.log(`Server process exited with code ${code}`);
+// Start the Lichess bot
+const botProcess = fork(path.join(__dirname, 'src/bot/lichessBot.js'));
+
+serverProcess.on('close', (code) => {
+    console.log(`Stockfish server process exited with code ${code}`);
 });
 
-index.on('close', (code) => {
-    console.log(`Index process exited with code ${code}`);
+botProcess.on('close', (code) => {
+    console.log(`Bot process exited with code ${code}`);
 });
